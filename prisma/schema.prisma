@@ -89,6 +89,7 @@ model Website {
   subdomain       String   @unique // e.g., customer1.lumicloude.my.id
   customDomain    String?  @unique // e.g., example.com
   aliases         String[] // Additional domains
+  customDocroot   String?  // Custom document root path (relative to public_html)
   
   // Technical Details
   ipAddress       String   @default("198.41.192.67")

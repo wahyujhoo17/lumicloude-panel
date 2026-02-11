@@ -305,6 +305,41 @@ export class HestiaAPI {
     return this.request("v-update-letsencrypt-ssl", [user, domain]);
   }
 
+  /**
+   * Change web domain document root (custom directory)
+   * v-change-web-domain-docroot USER DOMAIN TARGET_DOMAIN [DIRECTORY]
+   * To set custom directory within same domain, use domain name as target and directory path
+   */
+  async changeDocumentRoot(
+    user: string,
+    domain: string,
+    directory: string,
+  ): Promise<HestiaResponse> {
+    // To set custom directory within the same domain:
+    // v-change-web-domain-docroot user domain domain directory
+    return this.request("v-change-web-domain-docroot", [
+      user,
+      domain,
+      domain,
+      directory,
+    ]);
+  }
+
+  /**
+   * Reset document root to default (public_html)
+   * v-change-web-domain-docroot USER DOMAIN default
+   */
+  async resetDocumentRoot(
+    user: string,
+    domain: string,
+  ): Promise<HestiaResponse> {
+    return this.request("v-change-web-domain-docroot", [
+      user,
+      domain,
+      "default",
+    ]);
+  }
+
   // ============================================
   // DATABASE MANAGEMENT
   // ============================================

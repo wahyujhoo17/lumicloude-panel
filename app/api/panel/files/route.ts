@@ -380,14 +380,17 @@ export async function PUT(request: Request) {
         const zip = new AdmZip(tmpZipPath);
         const zipEntries = zip.getEntries();
 
+        // Get parent directory of the zip file
+        const parentDir = path.substring(0, path.lastIndexOf("/"));
+        const targetBaseDir = parentDir ? `${baseDir}/${parentDir}` : baseDir;
+
         // Upload each extracted file back to HestiaCP
-        const extractDir = path.replace(/\.zip$/i, "");
         for (const entry of zipEntries) {
           if (!entry.isDirectory) {
-            const targetPath = `${baseDir}/${extractDir}/${entry.entryName}`;
+            const targetPath = `${targetBaseDir}/${entry.entryName}`;
             console.log("Uploading extracted file:", targetPath);
 
-            // Create directory if needed
+            // Create directory if needed (now recursive)
             const dirPath = targetPath.substring(
               0,
               targetPath.lastIndexOf("/"),
@@ -395,7 +398,7 @@ export async function PUT(request: Request) {
             try {
               await fileManager.createDirectory(dirPath);
             } catch (e) {
-              // Directory might already exist
+              console.error("Error creating directory:", e);
             }
 
             await fileManager.writeFile(targetPath, entry.getData());

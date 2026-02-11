@@ -202,12 +202,44 @@ export class HestiaFileManager {
   async createDirectory(path: string): Promise<void> {
     await this.ensureConnection();
 
-    return new Promise((resolve, reject) => {
-      this.sftp!.mkdir(path, (err) => {
-        if (err) reject(err);
-        else resolve();
-      });
-    });
+    // Create directories recursively
+    const parts = path.split("/").filter((p) => p);
+    let currentPath = path.startsWith("/") ? "/" : "";
+
+    for (const part of parts) {
+      currentPath += (currentPath === "/" ? "" : "/") + part;
+
+      try {
+        await new Promise<void>((resolve, reject) => {
+          this.sftp!.mkdir(currentPath, (err) => {
+            if (err) {
+              // Ignore error if directory already exists
+              if (
+                err.message.includes("File exists") ||
+                err.message.includes("Failure")
+              ) {
+                resolve();
+              } else {
+                reject(err);
+              }
+            } else {
+              resolve();
+            }
+          });
+        });
+      } catch (err) {
+        // Check if directory exists
+        const exists = await new Promise<boolean>((resolve) => {
+          this.sftp!.stat(currentPath, (err) => {
+            resolve(!err);
+          });
+        });
+
+        if (!exists) {
+          throw err;
+        }
+      }
+    }
   }
 
   /**
