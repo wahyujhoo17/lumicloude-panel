@@ -47,6 +47,7 @@ model Customer {
   monthlyPrice      Float    @default(0)
   billingCycle      BillingCycle @default(MONTHLY)
   nextBillingDate   DateTime?
+  expiresAt         DateTime?    // Tanggal kadaluarsa layanan
   
   // Metadata
   createdAt         DateTime @default(now())

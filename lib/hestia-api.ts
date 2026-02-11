@@ -122,6 +122,12 @@ export class HestiaAPI {
         formParams[`arg${i + 1}`] = String(arg);
       });
 
+      console.log(`[HestiaAPI] Request command: ${command}, args:`, args);
+      console.log(`[HestiaAPI] Form params:`, {
+        ...formParams,
+        password: formParams.password ? "***" : undefined,
+      });
+
       const formData = new URLSearchParams(formParams);
 
       const response = await this.client.post("", formData, {
@@ -199,7 +205,35 @@ export class HestiaAPI {
    * v-delete-user USER
    */
   async deleteUser(username: string): Promise<HestiaResponse> {
-    return this.request("v-delete-user", [username], { forcePassword: true });
+    console.log(`[HestiaAPI] Deleting user: ${username}`);
+    const result = await this.request("v-delete-user", [username], {
+      forcePassword: true,
+    });
+    console.log(
+      `[HestiaAPI] Delete user result:`,
+      JSON.stringify(result, null, 2),
+    );
+    return result;
+  }
+
+  /**
+   * Suspend a user account
+   * v-suspend-user USER [RESTART]
+   */
+  async suspendUser(username: string): Promise<HestiaResponse> {
+    return this.request("v-suspend-user", [username, "no"], {
+      forcePassword: true,
+    });
+  }
+
+  /**
+   * Unsuspend a user account
+   * v-unsuspend-user USER [RESTART]
+   */
+  async unsuspendUser(username: string): Promise<HestiaResponse> {
+    return this.request("v-unsuspend-user", [username, "no"], {
+      forcePassword: true,
+    });
   }
 
   /**
@@ -724,16 +758,18 @@ export class HestiaAPI {
 
   /**
    * Format subdomain for lumicloude.my.id
+   * Generates unique subdomain with random suffix to prevent duplicates
    */
   formatSubdomain(
     name: string,
     primaryDomain: string = "lumicloude.my.id",
   ): string {
-    const subdomain = name
+    const base = name
       .toLowerCase()
       .replace(/[^a-z0-9]/gi, "")
-      .substring(0, 20);
-    return `${subdomain}.${primaryDomain}`;
+      .substring(0, 16);
+    const random = Math.random().toString(36).substring(2, 7); // 5 char random
+    return `${base}${random}.${primaryDomain}`;
   }
 }
 

@@ -3,10 +3,21 @@
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { Plus, Search, Filter, Loader2, Eye, EyeOff } from "lucide-react";
+import {
+  Plus,
+  Search,
+  Filter,
+  Loader2,
+  Eye,
+  EyeOff,
+  Edit,
+  Trash2,
+  MoreVertical,
+} from "lucide-react";
 import Link from "next/link";
 import { Navbar } from "@/components/navbar";
 import { getPackage } from "@/lib/packages";
+import { useToast } from "@/hooks/use-toast";
 
 interface Customer {
   id: string;
@@ -30,6 +41,7 @@ interface Customer {
 export default function CustomersPage() {
   const router = useRouter();
   const { data: session, status } = useSession();
+  const { toast } = useToast();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -39,6 +51,9 @@ export default function CustomersPage() {
   const [visiblePasswords, setVisiblePasswords] = useState<Set<string>>(
     new Set(),
   );
+  const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<Customer | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const togglePasswordVisibility = (customerId: string) => {
     setVisiblePasswords((prev) => {
@@ -50,6 +65,49 @@ export default function CustomersPage() {
       }
       return newSet;
     });
+  };
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest(".dropdown-container")) {
+        setActiveDropdown(null);
+      }
+    };
+    document.addEventListener("click", handleClickOutside);
+    return () => document.removeEventListener("click", handleClickOutside);
+  }, []);
+
+  const handleDelete = async (customer: Customer) => {
+    try {
+      setDeleting(true);
+      const response = await fetch(`/api/customers/${customer.id}`, {
+        method: "DELETE",
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to delete customer");
+      }
+
+      toast({
+        title: "Success",
+        description: `Customer ${customer.name} has been deleted`,
+      });
+
+      setDeleteConfirm(null);
+      fetchCustomers();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "error",
+      });
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const fetchCustomers = async () => {
@@ -325,12 +383,56 @@ export default function CustomersPage() {
                       {new Date(customer.createdAt).toLocaleDateString("id-ID")}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <Link
-                        href={`/dashboard/customers/${customer.id}`}
-                        className="text-blue-600 hover:text-blue-900"
-                      >
-                        View
-                      </Link>
+                      <div className="relative dropdown-container">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setActiveDropdown(
+                              activeDropdown === customer.id
+                                ? null
+                                : customer.id,
+                            );
+                          }}
+                          className="p-2 hover:bg-gray-100 rounded-lg transition"
+                        >
+                          <MoreVertical className="w-4 h-4 text-gray-600" />
+                        </button>
+
+                        {activeDropdown === customer.id && (
+                          <div
+                            className="absolute right-0 mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-50"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <div className="py-1">
+                              <Link
+                                href={`/dashboard/customers/${customer.id}`}
+                                className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2"
+                              >
+                                <Eye className="w-4 h-4 text-blue-600" />
+                                <span>View Details</span>
+                              </Link>
+                              <Link
+                                href={`/dashboard/customers/${customer.id}/edit`}
+                                className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2"
+                              >
+                                <Edit className="w-4 h-4 text-orange-600" />
+                                <span>Edit Customer</span>
+                              </Link>
+                              <div className="border-t border-gray-200 my-1"></div>
+                              <button
+                                onClick={() => {
+                                  setDeleteConfirm(customer);
+                                  setActiveDropdown(null);
+                                }}
+                                className="w-full px-4 py-2 text-left text-sm hover:bg-red-50 flex items-center gap-2 text-red-600"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                                <span>Delete Customer</span>
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -367,6 +469,55 @@ export default function CustomersPage() {
           </div>
         )}
       </main>
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
+            <div className="px-6 py-4 border-b border-gray-200">
+              <h3 className="text-lg font-semibold text-red-600">
+                Delete Customer
+              </h3>
+            </div>
+            <div className="p-6">
+              <p className="text-gray-600 mb-4">
+                Are you sure you want to delete{" "}
+                <span className="font-semibold">{deleteConfirm.name}</span>?
+              </p>
+              <p className="text-sm text-red-600 bg-red-50 p-3 rounded-lg">
+                ⚠️ This will also delete all websites, databases, and data
+                associated with this customer. This action cannot be undone.
+              </p>
+            </div>
+            <div className="px-6 py-4 border-t border-gray-200 flex justify-end gap-3">
+              <button
+                onClick={() => setDeleteConfirm(null)}
+                className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                disabled={deleting}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleDelete(deleteConfirm)}
+                disabled={deleting}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 flex items-center gap-2"
+              >
+                {deleting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Deleting...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4" />
+                    Delete Customer
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -162,20 +162,29 @@ export default async function CustomerPanelPage() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
           {/* Websites Section */}
           <div className="bg-white rounded-xl shadow-md overflow-hidden">
-            <div className="px-6 py-4 bg-gradient-to-r from-blue-50 to-blue-100 border-b border-blue-200">
+            <div className="px-6 py-4 bg-gradient-to-r from-blue-50 to-blue-100 border-b border-blue-200 flex items-center justify-between">
               <h3 className="text-lg font-semibold text-gray-900 flex items-center">
                 <Globe className="w-5 h-5 mr-2 text-blue-600" />
                 Your Websites
               </h3>
+              <Link
+                href="/panel/websites"
+                className="text-sm px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition"
+              >
+                Manage
+              </Link>
             </div>
             <div className="p-6">
               {customer.websites.length === 0 ? (
                 <div className="text-center py-8 text-gray-500">
                   <Globe className="w-12 h-12 mx-auto mb-3 text-gray-300" />
                   <p>No websites yet</p>
-                  <p className="text-sm mt-1">
-                    Contact support to add a website
-                  </p>
+                  <Link
+                    href="/panel/websites"
+                    className="inline-block mt-3 text-sm px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition"
+                  >
+                    Add Your First Website
+                  </Link>
                 </div>
               ) : (
                 <div className="space-y-4">
@@ -295,6 +304,14 @@ export default async function CustomerPanelPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             <Link
+              href="/panel/websites"
+              className="flex items-center justify-center px-4 py-4 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-lg hover:from-green-700 hover:to-green-800 transition shadow-md"
+            >
+              <Globe className="w-5 h-5 mr-2" />
+              Manage Websites
+            </Link>
+
+            <Link
               href="/panel/files"
               className="flex items-center justify-center px-4 py-4 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 transition shadow-md"
             >
@@ -320,7 +337,7 @@ export default async function CustomerPanelPage() {
 
             <Link
               href="/panel/dns"
-              className="flex items-center justify-center px-4 py-4 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-lg hover:from-green-700 hover:to-green-800 transition shadow-md"
+              className="flex items-center justify-center px-4 py-4 bg-gradient-to-r from-indigo-600 to-indigo-700 text-white rounded-lg hover:from-indigo-700 hover:to-indigo-800 transition shadow-md"
             >
               <Cloud className="w-5 h-5 mr-2" />
               DNS Management

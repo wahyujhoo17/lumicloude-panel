@@ -3,17 +3,54 @@ import { requireAuth } from "@/lib/auth";
 import Link from "next/link";
 import { Navbar } from "@/components/navbar";
 import { SystemMonitor } from "@/components/system-monitor";
+import prisma from "@/lib/prisma";
 
 async function getDashboardStats() {
   try {
-    const response = await fetch(
-      `${process.env.NEXTAUTH_URL || "http://localhost:3000"}/api/dashboard/stats`,
-      {
-        cache: "no-store",
+    const [
+      totalCustomers,
+      activeCustomers,
+      suspendedCustomers,
+      totalWebsites,
+      activeWebsites,
+      pendingWebsites,
+      totalDatabases,
+      recentActivities,
+    ] = await Promise.all([
+      prisma.customer.count(),
+      prisma.customer.count({ where: { status: "ACTIVE" } }),
+      prisma.customer.count({ where: { status: "SUSPENDED" } }),
+      prisma.website.count(),
+      prisma.website.count({ where: { status: "ACTIVE" } }),
+      prisma.website.count({
+        where: {
+          status: { in: ["PENDING", "SSL_PENDING", "DNS_PENDING"] },
+        },
+      }),
+      prisma.database.count(),
+      prisma.activityLog.findMany({
+        take: 10,
+        orderBy: { createdAt: "desc" },
+      }),
+    ]);
+
+    return {
+      customers: {
+        total: totalCustomers,
+        active: activeCustomers,
+        suspended: suspendedCustomers,
       },
-    );
-    const data = await response.json();
-    return data.data;
+      websites: {
+        total: totalWebsites,
+        active: activeWebsites,
+        pending: pendingWebsites,
+      },
+      databases: {
+        total: totalDatabases,
+      },
+      totalCustomers,
+      recentActivities,
+    };
   } catch (error) {
     console.error("Failed to fetch dashboard stats:", error);
     return null;

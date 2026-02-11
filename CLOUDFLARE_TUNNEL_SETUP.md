@@ -143,6 +143,66 @@ http://lalaaliyaj.lumicloude.my.id
 
 ## ❓ Troubleshooting
 
+### Subdomain Menampilkan "Success! Your new web server is ready to use." (Default Apache Page)
+
+**Gejala**:
+
+- Subdomain customer sudah bisa diakses
+- Tapi menampilkan default page "Success! Your new web server is ready to use."
+- Bukan menampilkan index.html dari document root Hestia (`/home/{user}/web/{domain}/public_html/`)
+
+**Penyebab**:
+Cloudflare Tunnel tidak meneruskan **Host header** yang benar, sehingga Apache/Nginx tidak tahu virtual host mana yang harus digunakan dan menampilkan default page.
+
+**Solusi**:
+
+**Opsi 1: Tambahkan originRequest di Config File** (Recommended):
+
+```yaml
+tunnel: 208136fc-de2b-4173-b7e6-7e18577cb1e2
+credentials-file: /root/.cloudflared/208136fc-de2b-4173-b7e6-7e18577cb1e2.json
+
+ingress:
+  - hostname: "*.lumicloude.my.id"
+    service: http://100.86.108.93:8080
+    originRequest:
+      noTLSVerify: true
+      # Preserve Host header agar Apache/Nginx tahu virtual host mana
+      httpHostHeader: "" # Empty = use original hostname dari request
+  - service: http_status:404
+```
+
+Restart tunnel:
+
+```bash
+ssh root@100.86.108.93 "systemctl restart cloudflared"
+```
+
+**Opsi 2: Gunakan Nginx Port 80 instead of Apache 8080**:
+
+Ubah config tunnel dari port `8080` ke port `80`:
+
+```yaml
+ingress:
+  - hostname: "*.lumicloude.my.id"
+    service: http://100.86.108.93:80
+```
+
+**Opsi 3: Test Manual dengan curl**:
+
+Cek apakah virtual host sudah benar di server:
+
+```bash
+# Test langsung ke server (harus work)
+ssh root@100.86.108.93 "curl -H 'Host: akbar.lumicloude.my.id' http://localhost:8080"
+
+# Harusnya tampil index.html dari /home/custakbar3ysd23/web/akbar.lumicloude.my.id/public_html/
+```
+
+Jika test manual work, berarti masalah di Cloudflare Tunnel configuration.
+
+---
+
 ### Error: ERR_ADDRESS_UNREACHABLE atau Connection Failed
 
 **Penyebab**: Cloudflare Tunnel route sudah dikonfigurasi tapi config Dashboard conflict dengan config file

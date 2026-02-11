@@ -66,12 +66,8 @@ export async function POST(request: Request) {
     }
 
     // Step 3: Create website/domain in Hestia
-    const aliases = [
-      `www.${subdomain}`,
-      ...(data.customDomain
-        ? [data.customDomain, `www.${data.customDomain}`]
-        : []),
-    ];
+    // Only add customDomain to aliases if provided
+    const aliases = data.customDomain ? [data.customDomain] : [];
 
     const domainResult = await hestia.addDomain({
       user: hestiaUsername,

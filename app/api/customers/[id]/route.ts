@@ -70,7 +70,16 @@ export async function PATCH(
 ) {
   try {
     const body = await request.json();
-    const { name, email, phone, company, status, plan } = body;
+    const {
+      name,
+      email,
+      phone,
+      company,
+      status,
+      plan,
+      packageId,
+      billingCycle,
+    } = body;
 
     const customer = await prisma.customer.update({
       where: { id: params.id },
@@ -80,9 +89,9 @@ export async function PATCH(
         ...(phone !== undefined && { phone }),
         ...(company !== undefined && { company }),
         ...(status && { status }),
-        ...(plan && {
-          plan,
-        }),
+        ...(plan && { plan }),
+        ...(packageId && { packageId }),
+        ...(billingCycle && { billingCycle }),
       },
       include: {
         websites: true,
@@ -115,6 +124,17 @@ export async function PATCH(
 }
 
 /**
+ * PUT /api/customers/[id]
+ * Update customer (alias for PATCH)
+ */
+export async function PUT(
+  request: Request,
+  context: { params: { id: string } },
+) {
+  return PATCH(request, context);
+}
+
+/**
  * DELETE /api/customers/[id]
  * Delete customer (with cascading deletes)
  */
@@ -135,9 +155,45 @@ export async function DELETE(
       );
     }
 
-    // TODO: Delete from Hestia
-    // const hestia = getHestiaAPI();
-    // await hestia.deleteUser(customer.hestiaUsername);
+    // Delete from Hestia if customer has Hestia username
+    if (customer.hestiaUsername) {
+      console.log(
+        `[DELETE CUSTOMER] Attempting to delete Hestia user: ${customer.hestiaUsername}`,
+      );
+
+      const { HestiaAPI } = await import("@/lib/hestia-api");
+      const hestiaConfig = {
+        host: process.env.HESTIA_HOST || "",
+        port: process.env.HESTIA_PORT || "8083",
+        user: process.env.HESTIA_USER || "admin",
+        password: process.env.HESTIA_PASSWORD,
+      };
+
+      console.log(
+        `[DELETE CUSTOMER] Hestia Config: ${hestiaConfig.host}:${hestiaConfig.port}, user: ${hestiaConfig.user}`,
+      );
+
+      const hestia = new HestiaAPI(hestiaConfig);
+      const deleteResult = await hestia.deleteUser(customer.hestiaUsername);
+
+      console.log(`[DELETE CUSTOMER] Hestia delete result:`, deleteResult);
+
+      if (!deleteResult.success) {
+        // Return error instead of just logging
+        return NextResponse.json(
+          {
+            success: false,
+            error: `Failed to delete user from Hestia: ${deleteResult.error || "Unknown error"}`,
+            hestiaResponse: deleteResult,
+          },
+          { status: 500 },
+        );
+      }
+
+      console.log(
+        `[DELETE CUSTOMER] Successfully deleted from Hestia: ${customer.hestiaUsername}`,
+      );
+    }
 
     // Delete from database (cascades to websites & databases)
     await prisma.customer.delete({
