@@ -368,8 +368,16 @@ export async function PUT(request: Request) {
         // Download ZIP file
         const zipBuffer = await fileManager.readFile(zipPath);
 
+        // Save to temporary file first (AdmZip works better with file path)
+        const tmpDir = join(process.cwd(), "tmp");
+        if (!existsSync(tmpDir)) {
+          mkdirSync(tmpDir, { recursive: true });
+        }
+        const tmpZipPath = join(tmpDir, `extract_${Date.now()}.zip`);
+        await writeFile(tmpZipPath, zipBuffer);
+
         // Extract locally
-        const zip = new AdmZip(zipBuffer);
+        const zip = new AdmZip(tmpZipPath);
         const zipEntries = zip.getEntries();
 
         // Upload each extracted file back to HestiaCP
@@ -392,6 +400,13 @@ export async function PUT(request: Request) {
 
             await fileManager.writeFile(targetPath, entry.getData());
           }
+        }
+
+        // Clean up temporary file
+        try {
+          await unlink(tmpZipPath);
+        } catch (e) {
+          console.warn("Failed to delete temporary zip file:", e);
         }
 
         fileManager.disconnect();

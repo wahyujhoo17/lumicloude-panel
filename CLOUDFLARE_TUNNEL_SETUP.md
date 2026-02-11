@@ -86,6 +86,8 @@ Jika Anda punya akses SSH ke server yang menjalankan Cloudflare Tunnel:
 
 3. **Tambahkan Wildcard Route**
 
+   **PENTING**: Pastikan config PERSIS seperti ini (hapus route lain yang konflik):
+
    ```yaml
    tunnel: 208136fc-de2b-4173-b7e6-7e18577cb1e2
    credentials-file: /root/.cloudflared/208136fc-de2b-4173-b7e6-7e18577cb1e2.json
@@ -94,12 +96,15 @@ Jika Anda punya akses SSH ke server yang menjalankan Cloudflare Tunnel:
      # Wildcard route untuk semua subdomain customer
      - hostname: "*.lumicloude.my.id"
        service: http://100.86.108.93:8080
-       originRequest:
-         noTLSVerify: true
 
-     # Catch-all (required)
+     # Catch-all (required) - HARUS ada di paling bawah
      - service: http_status:404
    ```
+
+   **Catatan**:
+   - Jangan ada `originRequest` atau setting tambahan
+   - Pastikan tidak ada route lain untuk `lumicloude.my.id` yang konflik
+   - Wildcard `*.lumicloude.my.id` harus di atas catch-all
 
 4. **Restart Tunnel**
    ```bash
@@ -137,6 +142,92 @@ http://lalaaliyaj.lumicloude.my.id
 ---
 
 ## ❓ Troubleshooting
+
+### Error: ERR_ADDRESS_UNREACHABLE atau Connection Failed
+
+**Penyebab**: Cloudflare Tunnel route sudah dikonfigurasi tapi config Dashboard conflict dengan config file
+
+**PENTING**: Cloudflare Tunnel bisa dikelola via **Dashboard** ATAU **Config File**, tapi TIDAK KEDUANYA!
+
+Dashboard config akan **override** config file.
+
+**Solusi A: Gunakan Config File Saja** (Recommended):
+
+1. **Hapus semua Public Hostname dari Dashboard**:
+   - Buka Zero Trust → Tunnels → hestia-tunnel
+   - Tab "Public Hostname"
+   - Hapus semua hostname yang ada
+   - Biarkan kosong
+
+2. **Verify config file sudah benar**:
+
+   ```bash
+   ssh root@100.86.108.93 "cat /etc/cloudflared/config.yml"
+   ```
+
+   Harus tampil:
+
+   ```yaml
+   tunnel: 208136fc-de2b-4173-b7e6-7e18577cb1e2
+   credentials-file: /root/.cloudflared/208136fc-de2b-4173-b7e6-7e18577cb1e2.json
+
+   ingress:
+     - hostname: hestia.lumicloude.my.id
+       service: http://100.86.108.93:8080
+     - hostname: "*.lumicloude.my.id"
+       service: http://100.86.108.93:8080
+     - service: http_status:404
+   ```
+
+3. **Restart tunnel**:
+   ```bash
+   ssh root@100.86.108.93 "systemctl restart cloudflared"
+   ```
+
+**Solusi B: Gunakan Dashboard Saja**:
+
+1. **Edit catch-all rule** di Dashboard:
+   - Klik menu (3 titik) di catch-all rule
+   - Edit
+   - Ubah dari `http://100.86.108.93:80` ke service type `HTTP Status`
+   - Status Code: `404`
+   - Save
+
+2. **Tunggu 1-2 menit** untuk propagasi
+
+3. **Restart Cloudflare Tunnel** (jika via config file):
+
+   ```bash
+   # SSH ke server
+   ssh root@100.86.108.93
+
+   # Restart tunnel
+   systemctl restart cloudflared
+
+   # Check status
+   systemctl status cloudflared
+   ```
+
+4. **Tunggu propagasi** (jika via Dashboard):
+   - Setelah save wildcard route di dashboard, tunggu 1-2 menit
+   - Cloudflare perlu apply konfigurasi baru
+   - Refresh browser dan coba lagi
+
+5. **Verify route aktif**:
+   - Kembali ke Cloudflare Dashboard
+   - Zero Trust → Tunnels → hestia-tunnel
+   - Tab "Public Hostname"
+   - Pastikan `*.lumicloude.my.id` muncul dengan status aktif
+
+6. **Force clear DNS cache**:
+
+   ```bash
+   # macOS
+   sudo dscacheutil -flushcache; sudo killall -HUP mDNSResponder
+
+   # Atau coba dengan curl
+   curl -H "Host: lalaaliyaj.lumicloude.my.id" http://100.86.108.93:8080
+   ```
 
 ### Error: 522 Connection Timed Out
 

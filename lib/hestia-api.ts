@@ -243,7 +243,6 @@ export class HestiaAPI {
       params.user,
       params.domain,
       params.ip || "",
-      "", // ipversion
       params.restart !== false ? "yes" : "no",
       params.aliases ? params.aliases.join(",") : "",
     ]);
