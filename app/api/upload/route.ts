@@ -16,6 +16,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Require authentication for customer uploads
+    const { getServerSession } = await import("next-auth/next");
+    const { authOptions } = await import("@/app/api/auth/[...nextauth]/route");
+    const session = await getServerSession(authOptions as any);
+
     // Validate file type
     const allowedTypes = [
       "image/jpeg",
@@ -54,28 +59,66 @@ export async function POST(request: NextRequest) {
 
     // Determine upload path based on type
     let uploadDir = "";
-    switch (type) {
-      case "logo":
-        uploadDir = join(process.cwd(), "public", "logos");
-        break;
-      case "customer":
-        uploadDir = join(process.cwd(), "public", "uploads", "customers");
-        break;
-      default:
-        uploadDir = join(process.cwd(), "public", "uploads");
-    }
 
-    // Create directory if it doesn't exist
-    if (!existsSync(uploadDir)) {
+    if (type === "customer") {
+      // Customer uploads must be authenticated and scoped to their account
+      const sess = session as any;
+      if (!sess || !sess.user || !sess.user.email) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Authentication required for customer uploads",
+          },
+          { status: 401 },
+        );
+      }
+
+      const prisma = (await import("@/lib/prisma")).default;
+      const customer = await prisma.customer.findUnique({
+        where: { email: sess.user.email as string },
+      });
+
+      if (!customer) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Customer record not found for current user",
+          },
+          { status: 404 },
+        );
+      }
+
+      // Store uploads per-customer (use hestiaUsername when available for readability)
+      const folderName = customer.hestiaUsername || customer.id;
+      uploadDir = join(
+        process.cwd(),
+        "public",
+        "uploads",
+        "customers",
+        folderName,
+      );
+
+      // Ensure website root exists for this customer (optional)
       await mkdir(uploadDir, { recursive: true });
+    } else if (type === "logo") {
+      uploadDir = join(process.cwd(), "public", "logos");
+      if (!existsSync(uploadDir)) await mkdir(uploadDir, { recursive: true });
+    } else {
+      uploadDir = join(process.cwd(), "public", "uploads");
+      if (!existsSync(uploadDir)) await mkdir(uploadDir, { recursive: true });
     }
 
     // Save file
     const filePath = join(uploadDir, filename);
     await writeFile(filePath, buffer);
 
-    // Return public URL
-    const publicUrl = `/${type === "logo" ? "logos" : type === "customer" ? "uploads/customers" : "uploads"}/${filename}`;
+    // Return public URL (customer uploads include folder)
+    const publicUrl =
+      type === "logo"
+        ? `/logos/${filename}`
+        : type === "customer"
+          ? `/uploads/customers/${uploadDir.split("/").pop()}/${filename}`
+          : `/uploads/${filename}`;
 
     return NextResponse.json({
       success: true,

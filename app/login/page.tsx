@@ -32,6 +32,7 @@ export default function LoginPage() {
         return;
       }
 
+      // Redirect will be handled by middleware based on user role
       router.push("/dashboard");
       router.refresh();
     } catch (err: any) {
@@ -49,7 +50,16 @@ export default function LoginPage() {
           <div className="flex justify-center mb-4">
             <Logo width={140} height={50} />
           </div>
-          <p className="text-gray-600 mt-2">Sign in to manage your hosting</p>
+          <h1 className="text-2xl font-bold text-gray-900 mt-2">
+            Welcome Back
+          </h1>
+          <p className="text-gray-600 mt-2">Sign in to your control panel</p>
+          <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+            <p className="text-sm text-blue-800">
+              <strong>Customers:</strong> Use your panel email & password
+              (provided by admin)
+            </p>
+          </div>
         </div>
 
         {/* Login Form */}

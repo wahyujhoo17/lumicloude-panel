@@ -96,6 +96,8 @@ export async function POST(request: Request) {
     }
 
     // Step 5: Create DNS A record in aaPanel
+    // Note: For Cloudflare Tunnel, setup wildcard DNS once: *.lumicloude.my.id
+    // Then all subdomains will work automatically without individual DNS records
     const subdomainPrefix = subdomain.replace(
       `.${process.env.PRIMARY_DOMAIN}`,
       "",

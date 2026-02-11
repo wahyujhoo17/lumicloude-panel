@@ -10,6 +10,11 @@ export async function GET(
   { params }: { params: { id: string } },
 ) {
   try {
+    // Authorization: if caller is a USER ensure they only fetch their own customer record
+    const { getServerSession } = await import("next-auth/next");
+    const { authOptions } = await import("@/app/api/auth/[...nextauth]/route");
+    const session = await getServerSession(authOptions as any);
+
     const customer = await prisma.customer.findUnique({
       where: { id: params.id },
       include: {
@@ -30,6 +35,16 @@ export async function GET(
         { success: false, error: "Customer not found" },
         { status: 404 },
       );
+    }
+
+    const sess = session as any;
+    if (sess && sess.user && sess.user.role === "USER") {
+      if (sess.user.email !== customer.email) {
+        return NextResponse.json(
+          { success: false, error: "Forbidden" },
+          { status: 403 },
+        );
+      }
     }
 
     return NextResponse.json({

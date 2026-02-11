@@ -15,10 +15,11 @@ interface NavbarProps {
 
 export function Navbar({ user }: NavbarProps) {
   const pathname = usePathname();
+  const isAdmin = user.role === "ADMIN";
 
   const isActive = (path: string) => {
-    if (path === "/dashboard") {
-      return pathname === "/dashboard";
+    if (path === "/dashboard" || path === "/panel") {
+      return pathname === path;
     }
     return pathname.startsWith(path);
   };
@@ -29,29 +30,60 @@ export function Navbar({ user }: NavbarProps) {
         <div className="flex items-center justify-between h-14 sm:h-16">
           {/* Logo & Navigation */}
           <div className="flex items-center gap-3 sm:gap-6">
-            <Logo width={55} height={20} href="/dashboard" />
+            <Logo
+              width={55}
+              height={20}
+              href={isAdmin ? "/dashboard" : "/panel"}
+            />
             <div className="h-6 w-px bg-gray-300 hidden lg:block"></div>
             <nav className="hidden lg:flex items-center gap-1.5">
-              <Link
-                href="/dashboard"
-                className={`px-3 py-1.5 text-sm font-medium rounded-lg transition ${
-                  isActive("/dashboard")
-                    ? "text-white bg-blue-600 hover:bg-blue-700"
-                    : "text-gray-700 hover:text-gray-900 hover:bg-gray-100"
-                }`}
-              >
-                Dashboard
-              </Link>
-              <Link
-                href="/dashboard/customers"
-                className={`px-3 py-1.5 text-sm font-medium rounded-lg transition ${
-                  isActive("/dashboard/customers")
-                    ? "text-white bg-blue-600 hover:bg-blue-700"
-                    : "text-gray-700 hover:text-gray-900 hover:bg-gray-100"
-                }`}
-              >
-                Customers
-              </Link>
+              {isAdmin ? (
+                <>
+                  <Link
+                    href="/dashboard"
+                    className={`px-3 py-1.5 text-sm font-medium rounded-lg transition ${
+                      isActive("/dashboard")
+                        ? "text-white bg-blue-600 hover:bg-blue-700"
+                        : "text-gray-700 hover:text-gray-900 hover:bg-gray-100"
+                    }`}
+                  >
+                    Dashboard
+                  </Link>
+                  <Link
+                    href="/dashboard/customers"
+                    className={`px-3 py-1.5 text-sm font-medium rounded-lg transition ${
+                      isActive("/dashboard/customers")
+                        ? "text-white bg-blue-600 hover:bg-blue-700"
+                        : "text-gray-700 hover:text-gray-900 hover:bg-gray-100"
+                    }`}
+                  >
+                    Customers
+                  </Link>
+                  <Link
+                    href="/dashboard/activity"
+                    className={`px-3 py-1.5 text-sm font-medium rounded-lg transition ${
+                      isActive("/dashboard/activity")
+                        ? "text-white bg-blue-600 hover:bg-blue-700"
+                        : "text-gray-700 hover:text-gray-900 hover:bg-gray-100"
+                    }`}
+                  >
+                    Activity
+                  </Link>
+                </>
+              ) : (
+                <>
+                  <Link
+                    href="/panel"
+                    className={`px-3 py-1.5 text-sm font-medium rounded-lg transition ${
+                      isActive("/panel")
+                        ? "text-white bg-blue-600 hover:bg-blue-700"
+                        : "text-gray-700 hover:text-gray-900 hover:bg-gray-100"
+                    }`}
+                  >
+                    My Panel
+                  </Link>
+                </>
+              )}
             </nav>
           </div>
 
@@ -60,7 +92,7 @@ export function Navbar({ user }: NavbarProps) {
             <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-gray-50 rounded-lg">
               <div className="flex flex-col items-end">
                 <p className="text-xs text-gray-500 leading-tight">
-                  {user.role || "Admin"}
+                  {isAdmin ? "Admin" : "Customer"}
                 </p>
                 <p className="text-xs sm:text-sm font-semibold text-gray-900 leading-tight">
                   {user.name || user.email?.split("@")[0]}
