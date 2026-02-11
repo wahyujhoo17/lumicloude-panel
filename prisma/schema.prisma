@@ -1,0 +1,192 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  password  String
+  role      Role     @default(USER)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  customers    Customer[]
+  activityLogs ActivityLog[]
+  
+  @@map("users")
+}
+
+enum Role {
+  ADMIN
+  USER
+}
+
+model Customer {
+  id                String   @id @default(cuid())
+  name              String
+  email             String   @unique
+  phone             String?
+  company           String?
+  
+  // Hestia Account Info
+  hestiaUsername    String   @unique
+  hestiaPassword    String
+  
+  // Subscription Info
+  packageId         String   @default("starter") // starter, business, enterprise
+  plan              Plan     @default(BASIC)
+  status            Status   @default(ACTIVE)
+  
+  // Billing
+  monthlyPrice      Float    @default(0)
+  billingCycle      BillingCycle @default(MONTHLY)
+  nextBillingDate   DateTime?
+  
+  // Metadata
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  createdBy         String
+  createdByUser     User     @relation(fields: [createdBy], references: [id])
+  
+  websites          Website[]
+  databases         Database[]
+  
+  @@map("customers")
+}
+
+enum Plan {
+  BASIC
+  STANDARD
+  PREMIUM
+  ENTERPRISE
+}
+
+enum Status {
+  ACTIVE
+  SUSPENDED
+  CANCELLED
+  PENDING
+}
+
+enum BillingCycle {
+  MONTHLY
+  QUARTERLY
+  YEARLY
+}
+
+model Website {
+  id              String   @id @default(cuid())
+  customerId      String
+  customer        Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  
+  // Domain Info
+  subdomain       String   @unique // e.g., customer1.lumicloude.my.id
+  customDomain    String?  @unique // e.g., example.com
+  aliases         String[] // Additional domains
+  
+  // Technical Details
+  ipAddress       String   @default("198.41.192.67")
+  sslEnabled      Boolean  @default(true)
+  sslForce        Boolean  @default(true)
+  phpVersion      String   @default("8.1")
+  
+  // Status & Health
+  status          WebsiteStatus @default(PENDING)
+  dnsVerified     Boolean  @default(false)
+  sslVerified     Boolean  @default(false)
+  lastChecked     DateTime?
+  
+  // Statistics
+  diskUsage       Float    @default(0) // in MB
+  bandwidthUsage  Float    @default(0) // in MB
+  
+  // Metadata
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@map("websites")
+}
+
+enum WebsiteStatus {
+  PENDING
+  ACTIVE
+  SSL_PENDING
+  DNS_PENDING
+  ERROR
+  SUSPENDED
+}
+
+model Database {
+  id              String   @id @default(cuid())
+  customerId      String
+  customer        Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  
+  // Database Info
+  name            String
+  username        String
+  password        String
+  host            String   @default("localhost")
+  port            Int      @default(3306)
+  charset         String   @default("utf8mb4")
+  
+  // Statistics
+  size            Float    @default(0) // in MB
+  
+  // Metadata
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@unique([customerId, name])
+  @@map("databases")
+}
+
+model ActivityLog {
+  id          String   @id @default(cuid())
+  
+  // Who & What
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action      String
+  resource    String
+  resourceId  String?
+  
+  // Details
+  description String?
+  metadata    Json?
+  ipAddress   String?
+  userAgent   String?
+  
+  // Status
+  status      LogStatus @default(SUCCESS)
+  error       String?
+  
+  // Timestamp
+  createdAt   DateTime @default(now())
+  
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("activity_logs")
+}
+
+enum LogStatus {
+  SUCCESS
+  FAILED
+  PENDING
+}
+
+model SystemConfig {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  value       String
+  description String?
+  updatedAt   DateTime @updatedAt
+  
+  @@map("system_configs")
+}
