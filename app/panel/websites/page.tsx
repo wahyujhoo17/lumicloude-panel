@@ -70,6 +70,7 @@ export default function WebsitesPage() {
     phpVersion: "8.1",
   });
   const [updating, setUpdating] = useState(false);
+  const [deleting, setDeleting] = useState<string | null>(null);
 
   // Load customer data
   useEffect(() => {
@@ -215,6 +216,44 @@ export default function WebsitesPage() {
       setError(err.message || "Failed to update website");
     } finally {
       setUpdating(false);
+    }
+  };
+
+  // Handle delete website
+  const handleDeleteWebsite = async (website: Website) => {
+    if (
+      !confirm(
+        `Are you sure you want to delete "${website.customDomain || website.subdomain}"? This action cannot be undone and all files will be permanently deleted.`,
+      )
+    )
+      return;
+
+    setError("");
+    setDeleting(website.id);
+
+    try {
+      const response = await fetch(`/api/websites/${website.id}`, {
+        method: "DELETE",
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setSuccess("Website deleted successfully");
+        // Update local state
+        if (customer) {
+          setCustomer({
+            ...customer,
+            websites: customer.websites.filter((w) => w.id !== website.id),
+          });
+        }
+      } else {
+        setError(data.error || "Failed to delete website");
+      }
+    } catch (err: any) {
+      setError(err.message || "Failed to delete website");
+    } finally {
+      setDeleting(null);
     }
   };
 
@@ -638,6 +677,18 @@ export default function WebsitesPage() {
                           Custom Domain
                         </button>
                       )}
+                      <button
+                        onClick={() => handleDeleteWebsite(website)}
+                        disabled={deleting === website.id}
+                        className="inline-flex items-center justify-center px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition text-sm whitespace-nowrap disabled:opacity-50"
+                      >
+                        {deleting === website.id ? (
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        ) : (
+                          <Trash2 className="w-4 h-4 mr-2" />
+                        )}
+                        Delete
+                      </button>
                     </div>
                   </div>
                 </div>
