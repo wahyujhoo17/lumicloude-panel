@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { Navbar } from "@/components/navbar";
 import {
   Globe,
   Lock,
@@ -19,6 +20,9 @@ import {
   ChevronUp,
   Lightbulb,
   AlertTriangle,
+  Edit,
+  Trash2,
+  FolderOpen,
 } from "lucide-react";
 
 interface Website {
@@ -58,6 +62,14 @@ export default function WebsitesPage() {
   const [success, setSuccess] = useState("");
   const [copied, setCopied] = useState<string | null>(null);
   const [showDnsGuide, setShowDnsGuide] = useState<string | null>(null);
+
+  // Edit website states
+  const [editingWebsite, setEditingWebsite] = useState<Website | null>(null);
+  const [editFormData, setEditFormData] = useState({
+    customDomain: "",
+    phpVersion: "8.1",
+  });
+  const [updating, setUpdating] = useState(false);
 
   // Load customer data
   useEffect(() => {
@@ -147,6 +159,104 @@ export default function WebsitesPage() {
     }
   };
 
+  // Open edit modal
+  const handleOpenEdit = (website: Website) => {
+    setEditingWebsite(website);
+    setEditFormData({
+      customDomain: website.customDomain || "",
+      phpVersion: website.phpVersion || "8.1",
+    });
+    setError("");
+  };
+
+  // Handle update website
+  const handleUpdateWebsite = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingWebsite) return;
+
+    setError("");
+    setSuccess("");
+    setUpdating(true);
+
+    try {
+      const response = await fetch(`/api/websites/${editingWebsite.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          customDomain: editFormData.customDomain.trim() || null,
+          phpVersion: editFormData.phpVersion,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setSuccess("Website updated successfully");
+        setEditingWebsite(null);
+        // Update local state
+        if (customer) {
+          setCustomer({
+            ...customer,
+            websites: customer.websites.map((w) =>
+              w.id === editingWebsite.id
+                ? {
+                    ...w,
+                    customDomain: editFormData.customDomain.trim() || null,
+                    phpVersion: editFormData.phpVersion,
+                  }
+                : w,
+            ),
+          });
+        }
+      } else {
+        setError(data.error || "Failed to update website");
+      }
+    } catch (err: any) {
+      setError(err.message || "Failed to update website");
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  // Handle remove custom domain
+  const handleRemoveCustomDomain = async (websiteId: string) => {
+    if (!confirm("Are you sure you want to remove the custom domain?")) return;
+
+    setError("");
+    setUpdating(true);
+
+    try {
+      const response = await fetch(`/api/websites/${websiteId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          customDomain: null,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setSuccess("Custom domain removed successfully");
+        // Update local state
+        if (customer) {
+          setCustomer({
+            ...customer,
+            websites: customer.websites.map((w) =>
+              w.id === websiteId ? { ...w, customDomain: null } : w,
+            ),
+          });
+        }
+      } else {
+        setError(data.error || "Failed to remove custom domain");
+      }
+    } catch (err: any) {
+      setError(err.message || "Failed to remove custom domain");
+    } finally {
+      setUpdating(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -190,6 +300,8 @@ export default function WebsitesPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <Navbar user={{ email: customer?.name || "", role: "USER" }} />
+
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="mb-8">
@@ -392,22 +504,25 @@ export default function WebsitesPage() {
               >
                 {/* Website Header */}
                 <div className="p-6">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
+                  <div className="flex items-start justify-between gap-4">
+                    {/* Left Side - Website Info */}
+                    <div className="flex-1 min-w-0">
                       <div className="flex items-center">
                         <Globe className="w-6 h-6 text-blue-600 mr-3 flex-shrink-0" />
-                        <div className="flex-1">
+                        <div className="flex-1 min-w-0">
                           {/* Primary Domain Name */}
                           <h3 className="text-lg font-semibold text-gray-900 flex items-center flex-wrap gap-2">
-                            {website.customDomain || website.subdomain}
+                            <span className="truncate">
+                              {website.customDomain || website.subdomain}
+                            </span>
                             {website.sslEnabled && (
                               <Lock
-                                className="w-4 h-4 text-green-500"
+                                className="w-4 h-4 text-green-500 flex-shrink-0"
                                 title="SSL Enabled"
                               />
                             )}
                             <span
-                              className={`px-2 py-0.5 text-xs font-semibold rounded-full ${
+                              className={`px-2 py-0.5 text-xs font-semibold rounded-full flex-shrink-0 ${
                                 website.status === "ACTIVE"
                                   ? "bg-green-100 text-green-800"
                                   : website.status === "SSL_PENDING"
@@ -424,7 +539,7 @@ export default function WebsitesPage() {
                             <span className="bg-gray-100 text-gray-600 px-2 py-0.5 rounded text-xs font-medium mr-2">
                               Generated Domain
                             </span>
-                            <span className="font-mono text-xs">
+                            <span className="font-mono text-xs truncate">
                               {website.subdomain}
                             </span>
                             <button
@@ -434,7 +549,7 @@ export default function WebsitesPage() {
                                   "subdomain-" + website.id,
                                 )
                               }
-                              className="ml-1.5 text-gray-400 hover:text-gray-600"
+                              className="ml-1.5 text-gray-400 hover:text-gray-600 flex-shrink-0"
                               title="Copy subdomain"
                             >
                               {copied === "subdomain-" + website.id ? (
@@ -445,8 +560,8 @@ export default function WebsitesPage() {
                             </button>
                           </div>
 
-                          {/* Custom Domain Badge */}
-                          {website.customDomain ? (
+                          {/* Custom Domain */}
+                          {website.customDomain && (
                             <div className="mt-1.5 flex items-center text-sm text-purple-600">
                               <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded text-xs font-medium mr-2">
                                 Custom Domain
@@ -455,68 +570,75 @@ export default function WebsitesPage() {
                                 href={`https://${website.customDomain}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="font-medium hover:underline flex items-center"
+                                className="font-medium hover:underline flex items-center truncate"
                               >
                                 {website.customDomain}
-                                <ExternalLink className="w-3 h-3 ml-1" />
+                                <ExternalLink className="w-3 h-3 ml-1 flex-shrink-0" />
                               </a>
                             </div>
-                          ) : (
-                            <div className="mt-1.5 flex items-center text-sm text-amber-600">
-                              <span className="bg-amber-50 text-amber-700 px-2 py-0.5 rounded text-xs font-medium">
-                                No custom domain connected
-                              </span>
-                            </div>
                           )}
+
+                          <div className="mt-2 flex flex-wrap gap-3 text-sm text-gray-500">
+                            <span className="flex items-center">
+                              <span className="font-medium">PHP</span>&nbsp;
+                              {website.phpVersion}
+                            </span>
+                            <span className="flex items-center">
+                              <HardDrive className="w-3.5 h-3.5 mr-1" />
+                              {website.diskUsage.toFixed(0)} MB
+                            </span>
+                          </div>
                         </div>
                       </div>
-
-                      <div className="mt-3 flex flex-wrap gap-4 text-sm text-gray-500">
-                        <span>PHP {website.phpVersion}</span>
-                        <span className="flex items-center">
-                          <HardDrive className="w-3.5 h-3.5 mr-1" />
-                          {website.diskUsage.toFixed(0)} MB
-                        </span>
-                      </div>
                     </div>
-                  </div>
 
-                  {/* Action Buttons */}
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    <a
-                      href={`https://${website.customDomain || website.subdomain}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm"
-                    >
-                      <ExternalLink className="w-4 h-4 mr-2" />
-                      Visit Site
-                    </a>
-                    <button
-                      onClick={() =>
-                        router.push(`/panel/files?domain=${website.subdomain}`)
-                      }
-                      className="inline-flex items-center px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition text-sm"
-                    >
-                      Manage Files
-                    </button>
-                    {!website.customDomain && (
-                      <button
-                        onClick={() => {
-                          setShowCustomDomainForm(
-                            showCustomDomainForm === website.id
-                              ? null
-                              : website.id,
-                          );
-                          setCustomDomainInput("");
-                          setError("");
-                        }}
-                        className="inline-flex items-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition text-sm"
+                    {/* Right Side - Action Buttons */}
+                    <div className="flex flex-col gap-2 flex-shrink-0">
+                      <a
+                        href={`https://${website.customDomain || website.subdomain}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center justify-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm whitespace-nowrap"
                       >
-                        <Link2 className="w-4 h-4 mr-2" />
-                        Connect Custom Domain
+                        <ExternalLink className="w-4 h-4 mr-2" />
+                        Visit Site
+                      </a>
+                      <button
+                        onClick={() =>
+                          router.push(
+                            `/panel/files?domain=${website.subdomain}`,
+                          )
+                        }
+                        className="inline-flex items-center justify-center px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition text-sm whitespace-nowrap"
+                      >
+                        <FolderOpen className="w-4 h-4 mr-2" />
+                        Manage Files
                       </button>
-                    )}
+                      <button
+                        onClick={() => handleOpenEdit(website)}
+                        className="inline-flex items-center justify-center px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition text-sm whitespace-nowrap"
+                      >
+                        <Edit className="w-4 h-4 mr-2" />
+                        Edit
+                      </button>
+                      {!website.customDomain && (
+                        <button
+                          onClick={() => {
+                            setShowCustomDomainForm(
+                              showCustomDomainForm === website.id
+                                ? null
+                                : website.id,
+                            );
+                            setCustomDomainInput("");
+                            setError("");
+                          }}
+                          className="inline-flex items-center justify-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition text-sm whitespace-nowrap"
+                        >
+                          <Link2 className="w-4 h-4 mr-2" />
+                          Custom Domain
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
 
@@ -992,6 +1114,136 @@ export default function WebsitesPage() {
           )}
         </div>
       </div>
+
+      {/* Edit Website Modal */}
+      {editingWebsite && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg">
+            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-gray-900">
+                Edit Website
+              </h3>
+              <button
+                onClick={() => setEditingWebsite(null)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleUpdateWebsite} className="p-6 space-y-4">
+              {/* Website Info */}
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <p className="text-sm text-gray-500">Subdomain</p>
+                <p className="font-mono text-sm">{editingWebsite.subdomain}</p>
+              </div>
+
+              {/* Custom Domain */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Custom Domain
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={editFormData.customDomain}
+                    onChange={(e) =>
+                      setEditFormData({
+                        ...editFormData,
+                        customDomain: e.target.value,
+                      })
+                    }
+                    placeholder="example.com"
+                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    disabled={updating}
+                  />
+                  {editingWebsite.customDomain && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleRemoveCustomDomain(editingWebsite.id)
+                      }
+                      className="px-3 py-2 text-red-600 border border-red-300 rounded-lg hover:bg-red-50"
+                      disabled={updating}
+                      title="Remove custom domain"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+                <p className="mt-1 text-xs text-gray-500">
+                  Pastikan DNS sudah diarahkan ke subdomain sebelum menambahkan
+                  custom domain.
+                </p>
+              </div>
+
+              {/* PHP Version */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  PHP Version
+                </label>
+                <select
+                  value={editFormData.phpVersion}
+                  onChange={(e) =>
+                    setEditFormData({
+                      ...editFormData,
+                      phpVersion: e.target.value,
+                    })
+                  }
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  disabled={updating}
+                >
+                  <option value="7.4">PHP 7.4</option>
+                  <option value="8.0">PHP 8.0</option>
+                  <option value="8.1">PHP 8.1</option>
+                  <option value="8.2">PHP 8.2</option>
+                  <option value="8.3">PHP 8.3</option>
+                </select>
+                <p className="mt-1 text-xs text-gray-500">
+                  Pilih versi PHP yang sesuai dengan kebutuhan aplikasi Anda.
+                </p>
+              </div>
+
+              {/* Error Message in Modal */}
+              {error && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-lg flex items-center">
+                  <AlertCircle className="w-4 h-4 text-red-500 mr-2" />
+                  <p className="text-sm text-red-700">{error}</p>
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="flex justify-end gap-3 pt-4 border-t">
+                <button
+                  type="button"
+                  onClick={() => setEditingWebsite(null)}
+                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                  disabled={updating}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={updating}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
+                >
+                  {updating ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle className="w-4 h-4" />
+                      Save Changes
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

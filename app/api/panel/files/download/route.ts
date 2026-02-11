@@ -48,6 +48,7 @@ export async function GET(request: Request) {
     const user = await requireAuth();
     const { searchParams } = new URL(request.url);
     const path = searchParams.get("path");
+    const websiteId = searchParams.get("websiteId");
 
     if (!path) {
       return NextResponse.json(
@@ -70,7 +71,20 @@ export async function GET(request: Request) {
       );
     }
 
-    const website = customer.websites[0];
+    // Get website based on websiteId or default to first
+    let website;
+    if (websiteId) {
+      website = customer.websites.find((w) => w.id === websiteId);
+      if (!website) {
+        return NextResponse.json(
+          { success: false, error: "Website not found or not owned by you" },
+          { status: 404 },
+        );
+      }
+    } else {
+      website = customer.websites[0];
+    }
+
     if (!website) {
       return NextResponse.json(
         { success: false, error: "No website found" },

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Navbar } from "@/components/navbar";
 import Editor from "@monaco-editor/react";
 import { useToast } from "@/hooks/use-toast";
@@ -29,10 +29,20 @@ import {
   RefreshCw,
   FileEdit,
   MoreVertical,
+  Globe,
 } from "lucide-react";
+
+interface Website {
+  id: string;
+  subdomain: string;
+  customDomain: string | null;
+  status: string;
+}
 
 export default function FileManagerPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const domainParam = searchParams.get("domain");
   const { toast } = useToast();
   const [files, setFiles] = useState<any[]>([]);
   const [currentPath, setCurrentPath] = useState("");
@@ -68,6 +78,47 @@ export default function FileManagerPage() {
   } | null>(null);
   const [activeDropdown, setActiveDropdown] = useState<number | null>(null);
 
+  // Website selection
+  const [websites, setWebsites] = useState<Website[]>([]);
+  const [selectedWebsite, setSelectedWebsite] = useState<string>("");
+  const [loadingWebsites, setLoadingWebsites] = useState(true);
+
+  // Load user's websites
+  useEffect(() => {
+    const loadWebsites = async () => {
+      try {
+        setLoadingWebsites(true);
+        const res = await fetch("/api/customers/me");
+        const data = await res.json();
+        if (data.success && data.data.websites) {
+          setWebsites(data.data.websites);
+
+          // Check if domain parameter is provided in URL
+          if (domainParam) {
+            // Find website by subdomain
+            const matchedWebsite = data.data.websites.find(
+              (w: Website) =>
+                w.subdomain === domainParam || w.customDomain === domainParam,
+            );
+            if (matchedWebsite) {
+              setSelectedWebsite(matchedWebsite.id);
+            } else if (data.data.websites.length > 0) {
+              setSelectedWebsite(data.data.websites[0].id);
+            }
+          } else if (!selectedWebsite && data.data.websites.length > 0) {
+            // Set first website as default if not already selected
+            setSelectedWebsite(data.data.websites[0].id);
+          }
+        }
+      } catch (error) {
+        console.error("Error loading websites:", error);
+      } finally {
+        setLoadingWebsites(false);
+      }
+    };
+    loadWebsites();
+  }, [domainParam]);
+
   // Handle rename file/folder
   const handleRename = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -81,6 +132,7 @@ export default function FileManagerPage() {
           oldPath: renamingItem.path,
           newName: newItemName.trim(),
           isDirectory: renamingItem.isDirectory,
+          websiteId: selectedWebsite,
         }),
       });
 
@@ -184,10 +236,17 @@ export default function FileManagerPage() {
   };
 
   useEffect(() => {
-    loadFiles();
-    setSelectedFiles([]); // Clear selection when path changes
-    setSearchQuery(""); // Clear search when path changes
-  }, [currentPath]);
+    if (selectedWebsite) {
+      loadFiles();
+      setSelectedFiles([]); // Clear selection when path changes
+      setSearchQuery(""); // Clear search when path changes
+    }
+  }, [currentPath, selectedWebsite]);
+
+  // Reset path when website changes
+  useEffect(() => {
+    setCurrentPath("");
+  }, [selectedWebsite]);
 
   // Close dropdown and context menu when clicking outside
   useEffect(() => {
@@ -264,9 +323,12 @@ export default function FileManagerPage() {
 
     try {
       for (const path of selectedFiles) {
-        await fetch(`/api/panel/files?path=${encodeURIComponent(path)}`, {
-          method: "DELETE",
-        });
+        await fetch(
+          `/api/panel/files?path=${encodeURIComponent(path)}&websiteId=${selectedWebsite}`,
+          {
+            method: "DELETE",
+          },
+        );
       }
       setSelectedFiles([]);
       loadFiles();
@@ -286,10 +348,12 @@ export default function FileManagerPage() {
   };
 
   const loadFiles = async () => {
+    if (!selectedWebsite) return;
+
     try {
       setLoading(true);
       const res = await fetch(
-        `/api/panel/files?path=${encodeURIComponent(currentPath)}`,
+        `/api/panel/files?path=${encodeURIComponent(currentPath)}&websiteId=${selectedWebsite}`,
       );
       const data = await res.json();
       if (data.success) {
@@ -311,6 +375,7 @@ export default function FileManagerPage() {
       const formData = new FormData();
       formData.append("file", file);
       formData.append("path", currentPath);
+      formData.append("websiteId", selectedWebsite);
 
       const res = await fetch("/api/panel/files", {
         method: "POST",
@@ -349,7 +414,7 @@ export default function FileManagerPage() {
 
     try {
       const res = await fetch(
-        `/api/panel/files?path=${encodeURIComponent(path)}`,
+        `/api/panel/files?path=${encodeURIComponent(path)}&websiteId=${selectedWebsite}`,
         {
           method: "DELETE",
         },
@@ -393,7 +458,7 @@ export default function FileManagerPage() {
   const handleImagePreview = async (file: any) => {
     try {
       // Get image URL from download endpoint
-      const imageUrl = `/api/panel/files/download?path=${encodeURIComponent(file.path)}`;
+      const imageUrl = `/api/panel/files/download?path=${encodeURIComponent(file.path)}&websiteId=${selectedWebsite}`;
       setPreviewImage(imageUrl);
       setPreviewImageName(file.name);
     } catch (error) {
@@ -444,7 +509,7 @@ export default function FileManagerPage() {
       // Load file content for editing
       try {
         const res = await fetch(
-          `/api/panel/files?path=${encodeURIComponent(file.path)}&action=read`,
+          `/api/panel/files?path=${encodeURIComponent(file.path)}&action=read&websiteId=${selectedWebsite}`,
         );
         const data = await res.json();
         if (data.success) {
@@ -475,6 +540,7 @@ export default function FileManagerPage() {
           path: editingFile,
           content: fileContent,
           action: "update",
+          websiteId: selectedWebsite,
         }),
       });
 
@@ -517,6 +583,7 @@ export default function FileManagerPage() {
         body: JSON.stringify({
           path: filePath,
           action: "extract",
+          websiteId: selectedWebsite,
         }),
       });
 
@@ -560,6 +627,7 @@ export default function FileManagerPage() {
         body: JSON.stringify({
           path: folderPath,
           action: "mkdir",
+          websiteId: selectedWebsite,
         }),
       });
 
@@ -605,6 +673,7 @@ export default function FileManagerPage() {
         body: JSON.stringify({
           path: filePath,
           action: "create",
+          websiteId: selectedWebsite,
         }),
       });
 
@@ -638,7 +707,7 @@ export default function FileManagerPage() {
   const handleDownload = async (filePath: string, fileName: string) => {
     try {
       const res = await fetch(
-        `/api/panel/files/download?path=${encodeURIComponent(filePath)}`,
+        `/api/panel/files/download?path=${encodeURIComponent(filePath)}&websiteId=${selectedWebsite}`,
       );
 
       if (!res.ok) {
@@ -774,30 +843,60 @@ export default function FileManagerPage() {
               <h1 className="text-2xl font-bold text-gray-900">File Manager</h1>
             </div>
 
-            {/* View Mode & Refresh */}
-            <div className="flex items-center gap-2">
-              <button
-                onClick={loadFiles}
-                className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-                title="Refresh"
-              >
-                <RefreshCw className="w-5 h-5" />
-              </button>
-              <div className="flex border border-gray-300 rounded-lg overflow-hidden">
+            {/* Website Selector & View Mode */}
+            <div className="flex items-center gap-4">
+              {/* Website Selector */}
+              {websites.length > 1 && (
+                <div className="flex items-center gap-2">
+                  <Globe className="w-5 h-5 text-gray-500" />
+                  <select
+                    value={selectedWebsite}
+                    onChange={(e) => setSelectedWebsite(e.target.value)}
+                    className="px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    disabled={loadingWebsites}
+                  >
+                    {websites.map((website) => (
+                      <option key={website.id} value={website.id}>
+                        {website.customDomain || website.subdomain}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Current Website Badge (when only 1 website) */}
+              {websites.length === 1 && (
+                <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 text-blue-700 rounded-lg text-sm font-medium">
+                  <Globe className="w-4 h-4" />
+                  {websites[0].customDomain || websites[0].subdomain}
+                </div>
+              )}
+
+              {/* View Mode & Refresh */}
+              <div className="flex items-center gap-2">
                 <button
-                  onClick={() => setViewMode("grid")}
-                  className={`p-2 ${viewMode === "grid" ? "bg-blue-600 text-white" : "text-gray-600 hover:bg-gray-100"}`}
-                  title="Grid View"
+                  onClick={loadFiles}
+                  className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                  title="Refresh"
                 >
-                  <Grid3x3 className="w-4 h-4" />
+                  <RefreshCw className="w-5 h-5" />
                 </button>
-                <button
-                  onClick={() => setViewMode("list")}
-                  className={`p-2 ${viewMode === "list" ? "bg-blue-600 text-white" : "text-gray-600 hover:bg-gray-100"}`}
-                  title="List View"
-                >
-                  <List className="w-4 h-4" />
-                </button>
+                <div className="flex border border-gray-300 rounded-lg overflow-hidden">
+                  <button
+                    onClick={() => setViewMode("grid")}
+                    className={`p-2 ${viewMode === "grid" ? "bg-blue-600 text-white" : "text-gray-600 hover:bg-gray-100"}`}
+                    title="Grid View"
+                  >
+                    <Grid3x3 className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => setViewMode("list")}
+                    className={`p-2 ${viewMode === "list" ? "bg-blue-600 text-white" : "text-gray-600 hover:bg-gray-100"}`}
+                    title="List View"
+                  >
+                    <List className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -945,6 +1044,17 @@ export default function FileManagerPage() {
 
             {/* Action Buttons */}
             <div className="flex items-center gap-2">
+              {/* Bulk Delete Button - Shows when files are selected */}
+              {selectedFiles.length > 0 && (
+                <button
+                  onClick={handleBulkDelete}
+                  className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-all"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  Delete ({selectedFiles.length})
+                </button>
+              )}
+
               <label className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 cursor-pointer transition-all">
                 <Upload className="w-4 h-4" />
                 {uploading ? "Uploading..." : "Upload"}

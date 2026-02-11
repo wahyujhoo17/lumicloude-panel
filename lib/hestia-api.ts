@@ -316,6 +316,48 @@ export class HestiaAPI {
   }
 
   /**
+   * Add single domain alias
+   * v-add-web-domain-alias USER DOMAIN ALIAS [RESTART]
+   */
+  async addDomainAlias(
+    user: string,
+    domain: string,
+    alias: string,
+  ): Promise<HestiaResponse> {
+    return this.request("v-add-web-domain-alias", [user, domain, alias, "yes"]);
+  }
+
+  /**
+   * Delete domain alias
+   * v-delete-web-domain-alias USER DOMAIN ALIAS
+   */
+  async deleteDomainAlias(
+    user: string,
+    domain: string,
+    alias: string,
+  ): Promise<HestiaResponse> {
+    return this.request("v-delete-web-domain-alias", [user, domain, alias]);
+  }
+
+  /**
+   * Change PHP version for domain
+   * v-change-web-domain-backend-tpl USER DOMAIN TEMPLATE
+   */
+  async changePhpVersion(
+    user: string,
+    domain: string,
+    phpVersion: string,
+  ): Promise<HestiaResponse> {
+    // HestiaCP uses template names like "PHP-8.1"
+    const template = `PHP-${phpVersion}`;
+    return this.request("v-change-web-domain-backend-tpl", [
+      user,
+      domain,
+      template,
+    ]);
+  }
+
+  /**
    * Enable SSL for domain
    * v-add-letsencrypt-domain USER DOMAIN [ALIASES] [MAIL]
    */
