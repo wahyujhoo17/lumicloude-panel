@@ -16,9 +16,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get customer info using email
+    // Get customer info using email with websites
     const customer = await prisma.customer.findUnique({
       where: { email: user.email || "" },
+      include: {
+        websites: true,
+      },
     });
 
     if (!customer) {
@@ -28,14 +31,28 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Determine base path
-    const subdomain = customer.hestiaUsername.substring(4); // Remove 'cust' prefix
-    const basePath = `/home/${customer.hestiaUsername}/web/${subdomain}.lumicloude.my.id/public_html`;
+    // Get first website domain for the customer
+    const website = customer.websites[0];
+    if (!website) {
+      return NextResponse.json(
+        { error: "No website found for this customer" },
+        { status: 404 },
+      );
+    }
+
+    // Determine base path using website subdomain
+    const domain = website.subdomain;
+    const basePath = `/home/${customer.hestiaUsername}/web/${domain}/public_html`;
+
+    // Build full paths - oldPath is relative, we need to combine with basePath
+    const fullOldPath = oldPath ? `${basePath}/${oldPath}` : basePath;
 
     // Calculate new path - keep the directory path, just change the filename
-    const pathParts = oldPath.split("/");
+    const pathParts = fullOldPath.split("/");
     pathParts[pathParts.length - 1] = newName;
-    const newPath = pathParts.join("/");
+    const fullNewPath = pathParts.join("/");
+
+    console.log("Rename operation:", { fullOldPath, fullNewPath });
 
     return new Promise<NextResponse>((resolve) => {
       const conn = new Client();
@@ -53,7 +70,7 @@ export async function POST(request: NextRequest) {
             return;
           }
 
-          sftp.rename(oldPath, newPath, (err) => {
+          sftp.rename(fullOldPath, fullNewPath, (err) => {
             conn.end();
 
             if (err) {
