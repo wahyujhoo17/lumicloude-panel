@@ -11,7 +11,7 @@ export async function GET(request: Request) {
     const user = await requireAuth();
 
     const customer = await prisma.customer.findUnique({
-      where: { email: user.email },
+      where: { email: user.email || "" },
     });
 
     if (!customer) {
@@ -51,7 +51,7 @@ export async function POST(request: Request) {
     const user = await requireAuth();
 
     const customer = await prisma.customer.findUnique({
-      where: { email: user.email },
+      where: { email: user.email || "" },
     });
 
     if (!customer) {
@@ -114,7 +114,7 @@ export async function PUT(request: Request) {
     }
 
     const customer = await prisma.customer.findUnique({
-      where: { email: user.email },
+      where: { email: user.email || "" },
     });
 
     if (!customer) {

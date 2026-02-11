@@ -444,6 +444,66 @@ export class HestiaAPI {
     ]);
   }
 
+  /**
+   * List DNS records for a domain
+   * v-list-dns-records USER DOMAIN [FORMAT]
+   */
+  async listDNSRecords(
+    user: string,
+    domain: string,
+    format: string = "json",
+  ): Promise<HestiaResponse> {
+    return this.request("v-list-dns-records", [user, domain, format]);
+  }
+
+  // ============================================
+  // MAIL MANAGEMENT
+  // ============================================
+
+  /**
+   * List mail accounts for a domain
+   * v-list-mail-accounts USER DOMAIN [FORMAT]
+   */
+  async listMailAccounts(
+    user: string,
+    domain: string,
+    format: string = "json",
+  ): Promise<HestiaResponse> {
+    return this.request("v-list-mail-accounts", [user, domain, format]);
+  }
+
+  /**
+   * Add mail account
+   * v-add-mail-account USER DOMAIN ACCOUNT PASSWORD [QUOTA]
+   */
+  async addMailAccount(params: {
+    user: string;
+    domain: string;
+    account: string;
+    password: string;
+    quota?: string;
+  }): Promise<HestiaResponse> {
+    return this.request("v-add-mail-account", [
+      params.user,
+      params.domain,
+      params.account,
+      params.password,
+      params.quota || "unlimited",
+    ]);
+  }
+
+  /**
+   * Delete mail account
+   * v-delete-mail-account USER DOMAIN ACCOUNT
+   */
+  async deleteMailAccount(
+    user: string,
+    domain: string,
+    account: string,
+  ): Promise<HestiaResponse> {
+    return this.request("v-delete-mail-account", [user, domain, account]);
+  }
+
   // ============================================
   // BACKUP MANAGEMENT
   // ============================================

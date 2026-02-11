@@ -138,7 +138,7 @@ export class HestiaFileManager {
       const chunks: Buffer[] = [];
       const stream = this.sftp!.createReadStream(path);
 
-      stream.on("data", (chunk) => {
+      stream.on("data", (chunk: Buffer) => {
         chunks.push(chunk);
       });
 
@@ -146,7 +146,7 @@ export class HestiaFileManager {
         resolve(Buffer.concat(chunks));
       });
 
-      stream.on("error", (err) => {
+      stream.on("error", (err: Error) => {
         reject(err);
       });
     });
@@ -166,7 +166,7 @@ export class HestiaFileManager {
         resolve();
       });
 
-      stream.on("error", (err) => {
+      stream.on("error", (err: Error) => {
         reject(err);
       });
 

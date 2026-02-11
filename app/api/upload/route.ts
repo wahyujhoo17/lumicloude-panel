@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
 
     // Require authentication for customer uploads
     const { getServerSession } = await import("next-auth/next");
-    const { authOptions } = await import("@/app/api/auth/[...nextauth]/route");
+    const { authOptions } = await import("@/lib/auth-config");
     const session = await getServerSession(authOptions as any);
 
     // Validate file type

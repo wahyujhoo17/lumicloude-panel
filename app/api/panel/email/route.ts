@@ -11,7 +11,7 @@ export async function GET(request: Request) {
     const user = await requireAuth();
 
     const customer = await prisma.customer.findUnique({
-      where: { email: user.email },
+      where: { email: user.email || "" },
       include: {
         websites: true,
       },
@@ -67,7 +67,7 @@ export async function POST(request: Request) {
     }
 
     const customer = await prisma.customer.findUnique({
-      where: { email: user.email },
+      where: { email: user.email || "" },
       include: {
         websites: true,
       },
@@ -142,7 +142,7 @@ export async function DELETE(request: Request) {
     }
 
     const customer = await prisma.customer.findUnique({
-      where: { email: user.email },
+      where: { email: user.email || "" },
     });
 
     if (!customer) {

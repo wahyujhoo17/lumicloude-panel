@@ -27,7 +27,7 @@ export default async function CustomerPanelPage() {
 
   // Get customer data
   const customer = await prisma.customer.findUnique({
-    where: { email: user.email },
+    where: { email: user.email || "" },
     include: {
       websites: true,
       databases: true,

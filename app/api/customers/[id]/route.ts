@@ -12,7 +12,7 @@ export async function GET(
   try {
     // Authorization: if caller is a USER ensure they only fetch their own customer record
     const { getServerSession } = await import("next-auth/next");
-    const { authOptions } = await import("@/app/api/auth/[...nextauth]/route");
+    const { authOptions } = await import("@/lib/auth-config");
     const session = await getServerSession(authOptions as any);
 
     const customer = await prisma.customer.findUnique({

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
-import { getHestiaAPI } from "@/lib/hestia-api";
+import { HestiaAPI } from "@/lib/hestia-api";
 
 /**
  * GET /api/panel/databases - List all databases for customer
@@ -11,7 +11,7 @@ export async function GET(request: Request) {
     const user = await requireAuth();
 
     const customer = await prisma.customer.findUnique({
-      where: { email: user.email },
+      where: { email: user.email || "" },
       include: {
         databases: true,
       },
@@ -25,7 +25,7 @@ export async function GET(request: Request) {
     }
 
     // Also fetch from HestiaCP for real-time stats
-    const hestia = new getHestiaAPI({
+    const hestia = new HestiaAPI({
       host: process.env.HESTIA_HOST!,
       port: process.env.HESTIA_PORT!,
       user: customer.hestiaUsername,
@@ -67,7 +67,7 @@ export async function POST(request: Request) {
     }
 
     const customer = await prisma.customer.findUnique({
-      where: { email: user.email },
+      where: { email: user.email || "" },
     });
 
     if (!customer) {
@@ -78,13 +78,18 @@ export async function POST(request: Request) {
     }
 
     // Generate credentials
-    const hestia = getHestiaAPI();
+    const hestia = new HestiaAPI({
+      host: process.env.HESTIA_HOST!,
+      port: process.env.HESTIA_PORT!,
+      user: process.env.HESTIA_USER!,
+      password: process.env.HESTIA_PASSWORD!,
+    });
     const dbName = `${customer.hestiaUsername}_${name}`;
     const dbUser = `${customer.hestiaUsername}_${name}`;
     const dbPassword = hestia.generatePassword(16);
 
     // Create in HestiaCP
-    const hestiaClient = new getHestiaAPI.constructor({
+    const hestiaClient = new HestiaAPI({
       host: process.env.HESTIA_HOST!,
       port: process.env.HESTIA_PORT!,
       user: process.env.HESTIA_USER!,
@@ -146,7 +151,7 @@ export async function DELETE(request: Request) {
     }
 
     const customer = await prisma.customer.findUnique({
-      where: { email: user.email },
+      where: { email: user.email || "" },
       include: {
         databases: true,
       },
@@ -169,7 +174,7 @@ export async function DELETE(request: Request) {
     }
 
     // Delete from HestiaCP
-    const hestiaClient = new getHestiaAPI.constructor({
+    const hestiaClient = new HestiaAPI({
       host: process.env.HESTIA_HOST!,
       port: process.env.HESTIA_PORT!,
       user: process.env.HESTIA_USER!,

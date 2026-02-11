@@ -6,7 +6,7 @@ export async function POST(request: Request) {
     const { username: providedUsername, password } = body || {};
 
     const { getServerSession } = await import("next-auth/next");
-    const { authOptions } = await import("@/app/api/auth/[...nextauth]/route");
+    const { authOptions } = await import("@/lib/auth-config");
     const session = await getServerSession(authOptions as any);
     const sess = session as any;
 

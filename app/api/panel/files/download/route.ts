@@ -57,7 +57,7 @@ export async function GET(request: Request) {
     }
 
     const customer = await prisma.customer.findUnique({
-      where: { email: user.email },
+      where: { email: user.email || "" },
       include: {
         websites: true,
       },
@@ -117,7 +117,7 @@ export async function GET(request: Request) {
 
       const contentType = contentTypes[ext || ""] || "application/octet-stream";
 
-      return new NextResponse(fileBuffer, {
+      return new NextResponse(new Blob([new Uint8Array(fileBuffer)]), {
         status: 200,
         headers: {
           "Content-Type": contentType,
@@ -156,7 +156,7 @@ export async function GET(request: Request) {
 
       const contentType = contentTypes[ext || ""] || "application/octet-stream";
 
-      return new NextResponse(fileBuffer, {
+      return new NextResponse(new Blob([new Uint8Array(fileBuffer)]), {
         status: 200,
         headers: {
           "Content-Type": contentType,
