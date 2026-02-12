@@ -5,6 +5,7 @@ import { requireAuth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { z } from "zod";
 import { getPackage } from "@/lib/packages";
+import { getEmailService } from "@/lib/email";
 
 const createCustomerSchema = z.object({
   name: z.string().min(2),
@@ -185,7 +186,24 @@ export async function POST(request: Request) {
       },
     });
 
-    // Step 8: Log activity
+    // Step 8: Send welcome email with credentials
+    try {
+      const emailService = getEmailService();
+      await emailService.sendCustomerWelcome({
+        to: data.email,
+        name: data.name,
+        email: data.email,
+        password: hestiaPassword,
+        domain: subdomain,
+        panelUrl: "https://panel.lumicloud.my.id/login",
+      });
+      console.log("Welcome email sent to:", data.email);
+    } catch (emailError) {
+      console.error("Failed to send welcome email:", emailError);
+      // Don't fail the entire operation if email fails
+    }
+
+    // Step 9: Log activity
     await prisma.activityLog.create({
       data: {
         action: "CREATE_CUSTOMER",

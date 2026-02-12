@@ -224,7 +224,7 @@ export default function LoginPage() {
                   ) : (
                     <>
                       <Shield className="w-5 h-5 mr-2" />
-                      Kirim OTP
+                      Login
                     </>
                   )}
                 </button>

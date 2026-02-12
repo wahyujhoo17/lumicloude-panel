@@ -32,6 +32,15 @@ interface SendForgotPasswordParams {
   resetLink: string;
 }
 
+interface SendCustomerWelcomeParams {
+  to: string;
+  name: string;
+  email: string;
+  password: string;
+  domain: string;
+  panelUrl: string;
+}
+
 export class EmailService {
   private transporter: nodemailer.Transporter;
   private config: EmailConfig;
@@ -353,6 +362,141 @@ export class EmailService {
       to,
       subject: "Selamat Datang di LumiCloud Panel",
       html,
+    });
+  }
+
+  /**
+   * Send welcome email to new customer with credentials
+   */
+  async sendCustomerWelcome(
+    params: SendCustomerWelcomeParams,
+  ): Promise<boolean> {
+    const { to, name, email, password, domain, panelUrl } = params;
+
+    const html = `
+      <!DOCTYPE html>
+      <html lang="id">
+        <head>
+          <meta charset="UTF-8" />
+          <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+          <meta http-equiv="X-UA-Compatible" content="ie=edge" />
+          <title>Selamat Datang - LumiCloud Panel</title>
+          <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet" />
+        </head>
+        <body style="margin: 0; font-family: 'Poppins', sans-serif; background: #f8f9fa; font-size: 14px;">
+          <div style="max-width: 680px; margin: 0 auto; padding: 45px 30px 60px; background: #f8f9fa; background-image: url('https://panel.lumicloud.my.id/images/email-bg.png'); background-repeat: no-repeat; background-size: 800px 452px; background-position: top center; font-size: 14px; color: #434343;">
+            <header>
+              <table style="width: 100%;">
+                <tbody>
+                  <tr style="height: 0;">
+                    <td>
+                      <img alt="LumiCloud Logo" src="https://panel.lumicloud.my.id/logos/logo.png" height="60px" style="border-radius: 8px;" />
+                    </td>
+                    <td style="text-align: right;">
+                      <span style="font-size: 16px; line-height: 30px; color: #ffffff;">${new Date().toLocaleDateString("id-ID", { year: "numeric", month: "long", day: "numeric" })}</span>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </header>
+
+            <main>
+              <div style="margin: 0; margin-top: 70px; padding: 92px 30px 115px; background: #ffffff; border-radius: 30px; text-align: center; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);">
+                <div style="width: 100%; max-width: 489px; margin: 0 auto;">
+                  <h1 style="margin: 0; font-size: 24px; font-weight: 500; color: #1f1f1f;">Selamat Datang di LumiCloud!</h1>
+                  <p style="margin: 0; margin-top: 17px; font-size: 16px; font-weight: 500;">Halo ${name},</p>
+                  <p style="margin: 0; margin-top: 17px; font-weight: 500; letter-spacing: 0.56px; line-height: 1.6;">
+                    Akun hosting Anda telah berhasil dibuat! Website Anda sudah aktif dan siap digunakan. Berikut adalah informasi akses Anda untuk mengelola website dan panel kontrol.
+                  </p>
+
+                  <div style="margin: 40px 0; padding: 25px; background: #f8f9ff; border-radius: 12px; border: 2px solid #e3e8ff; text-align: left;">
+                    <h3 style="margin: 0 0 20px 0; font-size: 18px; color: #1f1f1f; text-align: center; font-weight: 600;">Informasi Akun Anda</h3>
+                    
+                    <div style="background: #ffffff; padding: 15px; border-radius: 8px; margin-bottom: 12px; border: 1px solid #e3e8ff;">
+                      <p style="margin: 0; font-size: 12px; color: #666666; font-weight: 600;">Email/Username</p>
+                      <p style="margin: 5px 0 0 0; font-size: 16px; font-weight: 600; font-family: monospace; color: #1f1f1f;">${email}</p>
+                    </div>
+                    
+                    <div style="background: #ffffff; padding: 15px; border-radius: 8px; margin-bottom: 12px; border: 1px solid #e3e8ff;">
+                      <p style="margin: 0; font-size: 12px; color: #666666; font-weight: 600;">Password</p>
+                      <p style="margin: 5px 0 0 0; font-size: 16px; font-weight: 600; font-family: monospace; color: #1f1f1f;">${password}</p>
+                    </div>
+                    
+                    <div style="background: #ffffff; padding: 15px; border-radius: 8px; border: 1px solid #e3e8ff;">
+                      <p style="margin: 0; font-size: 12px; color: #666666; font-weight: 600;">Domain Anda</p>
+                      <p style="margin: 5px 0 0 0; font-size: 16px; font-weight: 600; color: #1f1f1f;">
+                        <a href="https://${domain}" style="color: #0090e6; text-decoration: none;">${domain}</a>
+                      </p>
+                    </div>
+                  </div>
+
+                  <div style="margin-top: 40px; text-align: center;">
+                    <a href="${panelUrl}" style="display: inline-block; background: linear-gradient(135deg, #0090e6 0%, #7b00e2 100%); color: white; padding: 16px 40px; text-decoration: none; border-radius: 12px; font-weight: 600; font-size: 16px; box-shadow: 0 4px 15px rgba(0, 144, 230, 0.3);">Login ke Panel</a>
+                  </div>
+
+                  <div style="margin-top: 40px; padding: 20px; background: #f8f9ff; border-radius: 12px; border-left: 4px solid #0090e6; text-align: left;">
+                    <p style="margin: 0 0 10px 0; font-size: 14px; color: #666666; font-weight: 600;">Langkah Selanjutnya:</p>
+                    <ul style="margin: 0; padding-left: 20px; color: #666666; font-size: 14px; line-height: 1.8;">
+                      <li>Login ke panel menggunakan kredensial di atas</li>
+                      <li>Upload file website Anda melalui File Manager</li>
+                      <li>Kelola database, email, dan DNS di panel kontrol</li>
+                      <li>Website Anda dapat diakses di <strong>${domain}</strong></li>
+                    </ul>
+                  </div>
+
+                  <div style="margin-top: 30px; padding: 15px; background: #fff3cd; border-radius: 12px; border-left: 4px solid #ffc51a;">
+                    <p style="margin: 0; font-size: 13px; color: #856404; font-weight: 500;">
+                      <strong>PENTING:</strong> Simpan informasi login ini dengan aman. Kami merekomendasikan untuk mengganti password Anda setelah login pertama kali.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <p style="max-width: 400px; margin: 0 auto; margin-top: 90px; text-align: center; font-weight: 500; color: #8c8c8c;">
+                Butuh bantuan? Tim support kami siap membantu 24/7 di
+                <a href="mailto:support@lumicloud.my.id" style="color: #0090e6; text-decoration: none;">support@lumicloud.my.id</a>
+              </p>
+            </main>
+
+            <footer style="width: 100%; max-width: 490px; margin: 20px auto 0; text-align: center; border-top: 1px solid #e6ebf1;">
+              <p style="margin: 0; margin-top: 40px; font-size: 16px; font-weight: 600; color: #434343;">LumiCloud</p>
+              <p style="margin: 0; margin-top: 16px; color: #434343; font-size: 12px;">Copyright © 2026 LumiCloud. All rights reserved.</p>
+            </footer>
+          </div>
+        </body>
+      </html>
+    `;
+
+    const text = `
+      Halo ${name},
+      
+      Selamat! Akun hosting LumiCloud Anda telah berhasil dibuat.
+      
+      INFORMASI AKUN:
+      Email/Username: ${email}
+      Password: ${password}
+      Domain: ${domain}
+      Panel URL: ${panelUrl}
+      
+      LANGKAH SELANJUTNYA:
+      1. Login ke panel menggunakan kredensial di atas
+      2. Upload file website Anda melalui File Manager
+      3. Kelola database, email, dan DNS di panel kontrol
+      4. Website Anda dapat diakses di https://${domain}
+      
+      PENTING: Simpan informasi login ini dengan aman. Kami merekomendasikan untuk mengganti password Anda setelah login pertama kali.
+      
+      Butuh bantuan? Hubungi kami di support@lumicloud.my.id
+      
+      Salam,
+      Tim LumiCloud
+    `;
+
+    return this.sendEmail({
+      to,
+      subject: "Akun Hosting Anda Sudah Aktif - LumiCloud",
+      html,
+      text,
     });
   }
 
