@@ -25,11 +25,12 @@ export async function GET(request: Request) {
     }
 
     // Also fetch from HestiaCP for real-time stats
+    // Note: list-databases requires admin credentials
     const hestia = new HestiaAPI({
       host: process.env.HESTIA_HOST!,
       port: process.env.HESTIA_PORT!,
-      user: customer.hestiaUsername,
-      password: customer.hestiaPassword,
+      user: process.env.HESTIA_USER!,
+      password: process.env.HESTIA_PASSWORD!,
     });
 
     const result = await hestia.listDatabases(customer.hestiaUsername);
@@ -66,6 +67,29 @@ export async function POST(request: Request) {
       );
     }
 
+    // Validate database name (alphanumeric and underscore only, max 16 chars)
+    const dbNameRegex = /^[a-zA-Z0-9_]+$/;
+    if (!dbNameRegex.test(name)) {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "Database name can only contain letters, numbers, and underscores",
+        },
+        { status: 400 },
+      );
+    }
+
+    if (name.length > 16) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Database name too long (max 16 characters)",
+        },
+        { status: 400 },
+      );
+    }
+
     const customer = await prisma.customer.findUnique({
       where: { email: user.email || "" },
     });
@@ -77,43 +101,84 @@ export async function POST(request: Request) {
       );
     }
 
-    // Generate credentials
+    // Create HestiaCP client with admin credentials
     const hestia = new HestiaAPI({
       host: process.env.HESTIA_HOST!,
       port: process.env.HESTIA_PORT!,
       user: process.env.HESTIA_USER!,
       password: process.env.HESTIA_PASSWORD!,
     });
-    const dbName = `${customer.hestiaUsername}_${name}`;
-    const dbUser = `${customer.hestiaUsername}_${name}`;
+
+    // Generate database name and credentials
+    // Note: HestiaCP automatically adds username prefix, so we only pass the name
+    const dbName = name; // Will become: {username}_{name}
+    const dbUser = name; // Will become: {username}_{name}
     const dbPassword = hestia.generatePassword(16);
 
-    // Create in HestiaCP
-    const hestiaClient = new HestiaAPI({
-      host: process.env.HESTIA_HOST!,
-      port: process.env.HESTIA_PORT!,
-      user: process.env.HESTIA_USER!,
-      password: process.env.HESTIA_PASSWORD!,
+    // Full name after HestiaCP adds prefix
+    const fullDbName = `${customer.hestiaUsername}_${name}`;
+    const fullDbUser = `${customer.hestiaUsername}_${name}`;
+
+    // Check if database already exists in local DB
+    const existingDb = await prisma.database.findFirst({
+      where: {
+        customerId: customer.id,
+        name: fullDbName,
+      },
     });
 
-    const result = await hestiaClient.createDatabase({
+    if (existingDb) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Database "${name}" already exists`,
+        },
+        { status: 400 },
+      );
+    }
+
+    console.log(
+      `[CreateDB] Creating database for user: ${customer.hestiaUsername}`,
+    );
+    console.log(`[CreateDB] Database name (passed): ${dbName}`);
+    console.log(`[CreateDB] Full name (will be): ${fullDbName}`);
+    console.log(`[CreateDB] Database user (passed): ${dbUser}`);
+    console.log(`[CreateDB] Full user (will be): ${fullDbUser}`);
+
+    // Verify customer has HestiaCP account linked
+    if (!customer.hestiaUsername || !customer.hestiaPassword) {
+      console.error(`[CreateDB] Customer not linked to HestiaCP`);
+      throw new Error(
+        "Customer account not linked to HestiaCP. Please contact administrator.",
+      );
+    }
+
+    // Create database in HestiaCP
+    // HestiaCP will automatically add username prefix to database and dbuser
+    const result = await hestia.createDatabase({
       user: customer.hestiaUsername,
-      database: dbName,
-      dbuser: dbUser,
+      database: dbName, // HestiaCP adds prefix: becomes {username}_{dbName}
+      dbuser: dbUser, // HestiaCP adds prefix: becomes {username}_{dbUser}
       dbpass: dbPassword,
       charset: "utf8mb4",
     });
 
+    console.log(`[CreateDB] HestiaCP result:`, result);
+
     if (!result.success) {
-      throw new Error(result.error || "Failed to create database in HestiaCP");
+      const errorMsg =
+        result.error ||
+        `Failed to create database in HestiaCP (returncode: ${result.returncode})`;
+      console.error(`[CreateDB] Error:`, errorMsg);
+      throw new Error(errorMsg);
     }
 
-    // Save to local database
+    // Save to local database with the full name (after HestiaCP adds prefix)
     const database = await prisma.database.create({
       data: {
         customerId: customer.id,
-        name: dbName,
-        username: dbUser,
+        name: fullDbName, // Store full name with prefix
+        username: fullDbUser, // Store full username with prefix
         password: dbPassword,
         host: "localhost",
         port: 3306,

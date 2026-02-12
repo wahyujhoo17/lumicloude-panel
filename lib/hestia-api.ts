@@ -143,8 +143,16 @@ export class HestiaAPI {
         // If we requested returncode only, parse it
         if (!returnData) {
           const returncode = parseInt(trimmed);
+          const success = returncode === 0;
+
+          if (!success) {
+            console.error(
+              `[HestiaAPI] Command ${command} failed with returncode: ${returncode}`,
+            );
+          }
+
           return {
-            success: returncode === 0,
+            success,
             returncode,
             data: response.data as T,
           };
@@ -163,9 +171,16 @@ export class HestiaAPI {
       };
     } catch (error: any) {
       console.error(`HestiaCP API Error (${command}):`, error.message);
+      if (error.response?.data) {
+        console.error(`[HestiaAPI] Response data:`, error.response.data);
+      }
+      if (error.response?.status) {
+        console.error(`[HestiaAPI] Response status:`, error.response.status);
+      }
       return {
         success: false,
         error: error.response?.data || error.message,
+        returncode: error.response?.status,
       };
     }
   }

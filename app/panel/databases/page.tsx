@@ -10,6 +10,7 @@ import {
   Loader2,
   Eye,
   EyeOff,
+  ExternalLink,
 } from "lucide-react";
 
 export default function DatabasesPage() {
@@ -22,10 +23,31 @@ export default function DatabasesPage() {
   const [showPasswords, setShowPasswords] = useState<Record<string, boolean>>(
     {},
   );
+  const [customer, setCustomer] = useState<any>(null);
+  const [phpMyAdminUrl, setPhpMyAdminUrl] = useState<string>("");
 
   useEffect(() => {
     loadDatabases();
+    loadCustomer();
   }, []);
+
+  const loadCustomer = async () => {
+    try {
+      const res = await fetch("/api/customers/me");
+      const data = await res.json();
+      if (data.success) {
+        setCustomer(data.data);
+
+        // Get customer's first website subdomain for phpMyAdmin access
+        if (data.data.websites && data.data.websites.length > 0) {
+          const subdomain = data.data.websites[0].subdomain;
+          setPhpMyAdminUrl(`https://${subdomain}/phpmyadmin/`);
+        }
+      }
+    } catch (error) {
+      console.error("Error loading customer:", error);
+    }
+  };
 
   const loadDatabases = async () => {
     try {
@@ -95,6 +117,40 @@ export default function DatabasesPage() {
     setShowPasswords((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
+  const openPhpMyAdmin = (db: any) => {
+    if (!phpMyAdminUrl || !customer) {
+      alert("phpMyAdmin information not available");
+      return;
+    }
+
+    // Create a form to submit credentials to phpMyAdmin
+    const form = document.createElement("form");
+    form.method = "POST";
+    form.action = phpMyAdminUrl;
+    form.target = "_blank";
+
+    // Add phpMyAdmin login credentials
+    const fields = {
+      pma_username: db.username,
+      pma_password: db.password,
+      server: "1",
+      target: "index.php",
+      token: "",
+    };
+
+    for (const [key, value] of Object.entries(fields)) {
+      const input = document.createElement("input");
+      input.type = "hidden";
+      input.name = key;
+      input.value = value;
+      form.appendChild(input);
+    }
+
+    document.body.appendChild(form);
+    form.submit();
+    document.body.removeChild(form);
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -156,13 +212,33 @@ export default function DatabasesPage() {
             </form>
           </div>
         ) : (
-          <button
-            onClick={() => setShowForm(true)}
-            className="mb-6 flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-          >
-            <Plus className="w-5 h-5" />
-            Create Database
-          </button>
+          <div className="mb-6 flex gap-3">
+            <button
+              onClick={() => setShowForm(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            >
+              <Plus className="w-5 h-5" />
+              Create Database
+            </button>
+            {phpMyAdminUrl && (
+              <a
+                href={phpMyAdminUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600"
+                title="Open phpMyAdmin"
+              >
+                <svg
+                  className="w-5 h-5"
+                  viewBox="0 0 24 24"
+                  fill="currentColor"
+                >
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z" />
+                </svg>
+                phpMyAdmin
+              </a>
+            )}
+          </div>
         )}
 
         {/* Databases List */}
@@ -236,12 +312,22 @@ export default function DatabasesPage() {
                         </div>
                       </div>
                     </div>
-                    <button
-                      onClick={() => handleDelete(db.id, db.name)}
-                      className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
-                    >
-                      <Trash2 className="w-5 h-5" />
-                    </button>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => openPhpMyAdmin(db)}
+                        className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg flex items-center gap-1"
+                        title="Open in phpMyAdmin"
+                      >
+                        <ExternalLink className="w-5 h-5" />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(db.id, db.name)}
+                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
+                        title="Delete database"
+                      >
+                        <Trash2 className="w-5 h-5" />
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -250,15 +336,65 @@ export default function DatabasesPage() {
         </div>
 
         {/* Connection Info */}
-        <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <h4 className="font-semibold text-blue-900 mb-2">
-            Connection Information
-          </h4>
-          <p className="text-sm text-blue-800">
-            Use these credentials to connect your application to the database.
-            For security, never commit database passwords to your code
-            repository.
-          </p>
+        <div className="mt-6 space-y-4">
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <h4 className="font-semibold text-blue-900 mb-2">
+              Connection Information
+            </h4>
+            <p className="text-sm text-blue-800">
+              Use these credentials to connect your application to the database.
+              For security, never commit database passwords to your code
+              repository.
+            </p>
+          </div>
+
+          <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+            <h4 className="font-semibold text-green-900 mb-3 flex items-center gap-2">
+              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z" />
+              </svg>
+              phpMyAdmin Access
+            </h4>
+
+            <p className="text-sm text-green-800 mb-3">
+              Click the <ExternalLink className="w-3 h-3 inline" /> icon next to
+              any database to open it in phpMyAdmin. Your credentials will be
+              automatically filled in.
+            </p>
+            {phpMyAdminUrl ? (
+              <div className="text-sm bg-white rounded p-3 border border-green-300">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-green-700 font-medium block mb-1">
+                      phpMyAdmin URL:
+                    </span>
+                    <a
+                      href={phpMyAdminUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:underline break-all text-sm"
+                    >
+                      {phpMyAdminUrl}
+                    </a>
+                  </div>
+                  <a
+                    href={phpMyAdminUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="ml-3 px-3 py-1.5 bg-orange-500 text-white rounded-lg hover:bg-orange-600 flex items-center gap-1 whitespace-nowrap text-sm"
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                    Open
+                  </a>
+                </div>
+              </div>
+            ) : (
+              <div className="text-sm text-orange-700 bg-orange-50 rounded p-3 border border-orange-300">
+                ⚠️ No website configured yet. Create a website first to access
+                phpMyAdmin.
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
