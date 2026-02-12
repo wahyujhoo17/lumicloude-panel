@@ -37,7 +37,7 @@ export async function POST(request: Request) {
     const aapanel = getAAPanelAPI();
 
     // Step 1: Generate unique credentials
-    const hestiaUsername = hestia.generateUsername(data.email, "cust");
+    const hestiaUsername = hestia.generateUsername(data.email);
     const hestiaPassword = hestia.generatePassword(16);
     const subdomain = hestia.formatSubdomain(
       data.name,

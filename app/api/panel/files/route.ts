@@ -10,6 +10,7 @@ import {
   readFile,
   rename,
   mkdir,
+  rm,
 } from "fs/promises";
 import { join } from "path";
 import { existsSync, mkdirSync, createReadStream } from "fs";
@@ -647,14 +648,16 @@ export async function DELETE(request: Request) {
       const baseDir = `/home/${customer.hestiaUsername}/web/${domain}/public_html`;
       const targetPath = `${baseDir}/${path}`;
 
-      console.log("SFTP Delete:", targetPath);
+      console.log("SFTP Delete:", targetPath, "isDirectory:", isDirectory);
 
       await fileManager.delete(targetPath, isDirectory);
       fileManager.disconnect();
 
       return NextResponse.json({
         success: true,
-        message: "File deleted successfully",
+        message: isDirectory
+          ? "Folder deleted successfully"
+          : "File deleted successfully",
         method: "sftp",
       });
     } catch (sftpError: any) {
@@ -667,7 +670,22 @@ export async function DELETE(request: Request) {
       const baseDir = getBaseDirectory(customer.hestiaUsername, domain);
       const targetPath = join(baseDir, path);
 
-      await unlink(targetPath);
+      // Check if target is a directory
+      try {
+        const stats = await stat(targetPath);
+        if (stats.isDirectory()) {
+          await rm(targetPath, { recursive: true, force: true });
+        } else {
+          await unlink(targetPath);
+        }
+      } catch {
+        // If stat fails, try unlink then rm
+        try {
+          await unlink(targetPath);
+        } catch {
+          await rm(targetPath, { recursive: true, force: true });
+        }
+      }
 
       return NextResponse.json({
         success: true,

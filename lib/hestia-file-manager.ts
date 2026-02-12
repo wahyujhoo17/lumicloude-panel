@@ -181,18 +181,53 @@ export class HestiaFileManager {
   async delete(path: string, isDirectory: boolean = false): Promise<void> {
     await this.ensureConnection();
 
-    return new Promise((resolve, reject) => {
-      if (isDirectory) {
-        this.sftp!.rmdir(path, (err) => {
-          if (err) reject(err);
-          else resolve();
-        });
-      } else {
+    if (isDirectory) {
+      await this.deleteDirectoryRecursive(path);
+    } else {
+      return new Promise((resolve, reject) => {
         this.sftp!.unlink(path, (err) => {
           if (err) reject(err);
           else resolve();
         });
+      });
+    }
+  }
+
+  /**
+   * Recursively delete a directory and all its contents via SFTP
+   */
+  private async deleteDirectoryRecursive(dirPath: string): Promise<void> {
+    // List all items in the directory
+    const items = await new Promise<any[]>((resolve, reject) => {
+      this.sftp!.readdir(dirPath, (err, list) => {
+        if (err) reject(err);
+        else resolve(list || []);
+      });
+    });
+
+    // Delete each item
+    for (const item of items) {
+      const itemPath = `${dirPath}/${item.filename}`;
+      const isDir = (item.attrs.mode & 0o040000) !== 0;
+
+      if (isDir) {
+        await this.deleteDirectoryRecursive(itemPath);
+      } else {
+        await new Promise<void>((resolve, reject) => {
+          this.sftp!.unlink(itemPath, (err) => {
+            if (err) reject(err);
+            else resolve();
+          });
+        });
       }
+    }
+
+    // Now remove the empty directory
+    await new Promise<void>((resolve, reject) => {
+      this.sftp!.rmdir(dirPath, (err) => {
+        if (err) reject(err);
+        else resolve();
+      });
     });
   }
 

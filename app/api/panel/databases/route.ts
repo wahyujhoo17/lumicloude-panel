@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { HestiaAPI } from "@/lib/hestia-api";
+import { getPackage } from "@/lib/packages";
 
 /**
  * GET /api/panel/databases - List all databases for customer
@@ -92,6 +93,9 @@ export async function POST(request: Request) {
 
     const customer = await prisma.customer.findUnique({
       where: { email: user.email || "" },
+      include: {
+        databases: true,
+      },
     });
 
     if (!customer) {
@@ -99,6 +103,21 @@ export async function POST(request: Request) {
         { success: false, error: "Customer not found" },
         { status: 404 },
       );
+    }
+
+    // Check package quota for databases
+    const pkg = getPackage(customer.packageId);
+    if (pkg) {
+      const currentDbCount = customer.databases.length;
+      if (pkg.databases > 0 && currentDbCount >= pkg.databases) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: `Database limit reached. Your ${pkg.name} package allows ${pkg.databases} database(s). You currently have ${currentDbCount}. Please upgrade your package to add more databases.`,
+          },
+          { status: 403 },
+        );
+      }
     }
 
     // Create HestiaCP client with admin credentials

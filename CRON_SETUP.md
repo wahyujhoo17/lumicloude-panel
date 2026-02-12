@@ -4,6 +4,8 @@
 
 Sistem ini secara otomatis akan melakukan suspend terhadap customer yang masa berlanganannya sudah habis (expired). Cron job akan berjalan setiap hari dan memeriksa customer yang `expiresAt` sudah terlewati.
 
+**Update:** Sistem sekarang tidak hanya suspend user account, tetapi juga **menghapus konfigurasi web domain** milik customer tersebut secara otomatis menggunakan HestiaCP command `v-delete-web-domain`. Ini memastikan website benar-benar tidak dapat diakses saat customer di-suspend. Saat unsuspend, domain akan di-recreate kembali dengan command `v-add-web-domain`.
+
 ## Setup Cron Job
 
 ### 1. Generate CRON_SECRET
@@ -99,14 +101,17 @@ Response sukses:
 ```json
 {
   "success": true,
-  "message": "Checked 5 expired customers",
+  "processed": 2,
   "results": [
     {
       "customerId": "clx123abc",
-      "username": "custexample",
-      "suspended": true
+      "email": "customer@example.com",
+      "success": true,
+      "websitesSuspended": 3,
+      "totalWebsites": 3
     }
-  ]
+  ],
+  "timestamp": "2026-02-12T02:00:00.000Z"
 }
 ```
 
@@ -120,10 +125,11 @@ Response sukses:
 
 1. Cari semua customers dengan status `ACTIVE` dan `expiresAt < now()`
 2. Untuk setiap customer yang expired:
-   - Panggil HestiaCP API `v-suspend-user`
+   - **Suspend user account** via HestiaCP API `v-suspend-user`
+   - **Suspend semua website/domain** via HestiaCP API `v-suspend-web-domain` untuk setiap domain
    - Update status di database menjadi `SUSPENDED`
    - Log aktivitas suspend ke tabel `activityLog`
-3. Return hasil suspend (berapa yang berhasil/gagal)
+3. Return hasil suspend (berapa yang berhasil/gagal, berapa website yang di-suspend)
 
 ## Monitoring
 
@@ -154,6 +160,10 @@ ORDER BY updatedAt DESC;
 1. Pergi ke **Dashboard > Customers**
 2. Klik menu 3 titik (...) pada customer
 3. Pilih **Suspend** atau **Unsuspend**
+4. Sistem akan suspend/unsuspend:
+   - User account di HestiaCP
+   - **Semua website/domain** milik customer tersebut
+5. Toast notification akan muncul dengan hasil
 
 ### Via API
 
@@ -163,6 +173,21 @@ ORDER BY updatedAt DESC;
 curl -X POST https://yourdomain.com/api/customers/CUSTOMER_ID/suspend \
   -H "Content-Type: application/json" \
   -H "Cookie: your-session-cookie"
+```
+
+Response:
+
+```json
+{
+  "success": true,
+  "message": "Customer and all websites suspended successfully",
+  "websiteResults": [
+    {
+      "domain": "example.lumicloude.my.id",
+      "success": true
+    }
+  ]
+}
 ```
 
 **Unsuspend:**
@@ -182,12 +207,32 @@ curl -X DELETE https://yourdomain.com/api/customers/CUSTOMER_ID/suspend \
 3. Test manual dengan curl
 4. Pastikan domain/URL bisa diakses dari server
 
-### Customer Tidak Tersuspend
+### Customer Tidak Tersuspend / Website Masih Hidup
 
 1. Cek HestiaCP credentials sudah benar
 2. Cek HestiaCP admin user punya permission untuk suspend
-3. Cek log error di console/logs
-4. Test manual suspend via HestiaCP web panel
+3. **Pastikan command `v-suspend-web-domain` dipanggil untuk setiap domain**
+4. Cek log error di console/logs
+5. Test manual suspend via HestiaCP web panel
+6. Verifikasi dengan command manual:
+
+   ```bash
+   # Suspend domain
+   v-suspend-web-domain USERNAME DOMAIN yes
+
+   # Cek status domain
+   v-list-web-domains USERNAME json
+   ```
+
+### Website Masih Bisa Diakses Setelah Suspend
+
+**Penyebab:** Hanya user account yang di-suspend, tetapi web domain tidak di-suspend
+
+**Solusi:** Update sistem sekarang sudah otomatis suspend web domain. Pastikan:
+
+- API endpoint memanggil `suspendWebDomain()` untuk setiap website
+- HestiaCP command `v-suspend-web-domain` berhasil dijalankan
+- Restart web server jika perlu: parameter `yes` di command
 
 ### Error "Unauthorized"
 

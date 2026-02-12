@@ -44,36 +44,59 @@ export async function POST(
     });
 
     // Suspend user account
+    console.log(`[Suspend] Suspending user: ${customer.hestiaUsername}`);
     const result = await hestia.suspendUser(customer.hestiaUsername);
+    console.log(
+      `[Suspend] User suspend result:`,
+      result.success ? "SUCCESS" : "FAILED",
+      result.error || "",
+    );
 
     if (!result.success) {
       throw new Error(result.error || "Failed to suspend user in HestiaCP");
     }
 
     // Suspend all websites/domains
+    console.log(`[Suspend] Suspending ${customer.websites.length} websites...`);
     const websiteResults = [];
     for (const website of customer.websites) {
-      // Use custom domain if available, otherwise use subdomain
-      const domain = website.customDomain || website.subdomain;
+      // Suspend BOTH subdomain and custom domain (if exists)
+      const domainsToSuspend = [website.subdomain];
+      if (website.customDomain) {
+        domainsToSuspend.push(website.customDomain);
+      }
 
-      try {
-        const webResult = await hestia.suspendWebDomain(
-          customer.hestiaUsername,
-          domain,
-        );
-        websiteResults.push({
-          domain,
-          success: webResult.success,
-          error: webResult.error,
-        });
-      } catch (error: any) {
-        websiteResults.push({
-          domain,
-          success: false,
-          error: error.message,
-        });
+      for (const domain of domainsToSuspend) {
+        console.log(`[Suspend] Suspending domain: ${domain}`);
+        try {
+          const webResult = await hestia.suspendWebDomain(
+            customer.hestiaUsername,
+            domain,
+            true, // restart web server
+          );
+          console.log(
+            `[Suspend] Domain ${domain}:`,
+            webResult.success ? "SUCCESS" : "FAILED",
+            webResult.error || "",
+          );
+          websiteResults.push({
+            domain,
+            success: webResult.success,
+            error: webResult.error,
+          });
+        } catch (error: any) {
+          console.error(`[Suspend] Error suspending ${domain}:`, error.message);
+          websiteResults.push({
+            domain,
+            success: false,
+            error: error.message,
+          });
+        }
       }
     }
+    console.log(
+      `[Suspend] Suspended ${websiteResults.filter((w) => w.success).length}/${websiteResults.length} websites`,
+    );
 
     // Update status in database
     const updatedCustomer = await prisma.customer.update({
@@ -148,36 +171,64 @@ export async function DELETE(
     });
 
     // Unsuspend user account
+    console.log(`[Unsuspend] Unsuspending user: ${customer.hestiaUsername}`);
     const result = await hestia.unsuspendUser(customer.hestiaUsername);
+    console.log(
+      `[Unsuspend] User unsuspend result:`,
+      result.success ? "SUCCESS" : "FAILED",
+      result.error || "",
+    );
 
     if (!result.success) {
       throw new Error(result.error || "Failed to unsuspend user in HestiaCP");
     }
 
     // Unsuspend all websites/domains
+    console.log(
+      `[Unsuspend] Unsuspending ${customer.websites.length} websites...`,
+    );
     const websiteResults = [];
     for (const website of customer.websites) {
-      // Use custom domain if available, otherwise use subdomain
-      const domain = website.customDomain || website.subdomain;
+      // Unsuspend BOTH subdomain and custom domain (if exists)
+      const domainsToUnsuspend = [website.subdomain];
+      if (website.customDomain) {
+        domainsToUnsuspend.push(website.customDomain);
+      }
 
-      try {
-        const webResult = await hestia.unsuspendWebDomain(
-          customer.hestiaUsername,
-          domain,
-        );
-        websiteResults.push({
-          domain,
-          success: webResult.success,
-          error: webResult.error,
-        });
-      } catch (error: any) {
-        websiteResults.push({
-          domain,
-          success: false,
-          error: error.message,
-        });
+      for (const domain of domainsToUnsuspend) {
+        console.log(`[Unsuspend] Unsuspending domain: ${domain}`);
+        try {
+          const webResult = await hestia.unsuspendWebDomain(
+            customer.hestiaUsername,
+            domain,
+            true, // restart web server
+          );
+          console.log(
+            `[Unsuspend] Domain ${domain}:`,
+            webResult.success ? "SUCCESS" : "FAILED",
+            webResult.error || "",
+          );
+          websiteResults.push({
+            domain,
+            success: webResult.success,
+            error: webResult.error,
+          });
+        } catch (error: any) {
+          console.error(
+            `[Unsuspend] Error unsuspending ${domain}:`,
+            error.message,
+          );
+          websiteResults.push({
+            domain,
+            success: false,
+            error: error.message,
+          });
+        }
       }
     }
+    console.log(
+      `[Unsuspend] Unsuspended ${websiteResults.filter((w) => w.success).length}/${websiteResults.length} websites`,
+    );
 
     // Update status in database
     const updatedCustomer = await prisma.customer.update({

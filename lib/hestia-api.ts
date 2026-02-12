@@ -16,6 +16,7 @@ export interface HestiaResponse<T = any> {
   data?: T;
   error?: string;
   returncode?: number;
+  output?: string;
 }
 
 export interface HestiaUser {
@@ -122,11 +123,11 @@ export class HestiaAPI {
         formParams[`arg${i + 1}`] = String(arg);
       });
 
-      console.log(`[HestiaAPI] Request command: ${command}, args:`, args);
-      console.log(`[HestiaAPI] Form params:`, {
-        ...formParams,
-        password: formParams.password ? "***" : undefined,
-      });
+      // console.log(`[HestiaAPI] Request command: ${command}, args:`, args);
+      // console.log(`[HestiaAPI] Form params:`, {
+      //   ...formParams,
+      //   password: formParams.password ? "***" : undefined,
+      // });
 
       const formData = new URLSearchParams(formParams);
 
@@ -220,14 +221,14 @@ export class HestiaAPI {
    * v-delete-user USER
    */
   async deleteUser(username: string): Promise<HestiaResponse> {
-    console.log(`[HestiaAPI] Deleting user: ${username}`);
+    // console.log(`[HestiaAPI] Deleting user: ${username}`);
     const result = await this.request("v-delete-user", [username], {
       forcePassword: true,
     });
-    console.log(
-      `[HestiaAPI] Delete user result:`,
-      JSON.stringify(result, null, 2),
-    );
+    //  console.log(
+    //   `[HestiaAPI] Delete user result:`,
+    //   JSON.stringify(result, null, 2),
+    // );
     return result;
   }
 
@@ -252,27 +253,113 @@ export class HestiaAPI {
   }
 
   /**
-   * Suspend a web domain
-   * v-suspend-web-domain USER DOMAIN [RESTART]
+   * Suspend a web domain - HestiaCP will show default suspended page
    */
   async suspendWebDomain(
     username: string,
     domain: string,
+    restart: boolean = false,
   ): Promise<HestiaResponse> {
-    return this.request("v-suspend-web-domain", [username, domain, "yes"], {
-      forcePassword: true,
+    const results = [];
+
+    // 1. Suspend the web domain (HestiaCP shows default suspended page)
+    // console.log(`[HestiaAPI] Suspending web domain: ${domain}`);
+    const webResult = await this.request(
+      "v-suspend-web-domain",
+      [username, domain, "no"],
+      {
+        forcePassword: true,
+      },
+    );
+    results.push({
+      step: "web-domain",
+      success: webResult.success,
+      error: webResult.error,
     });
+
+    // 2. Suspend proxy (nginx)
+    // console.log(`[HestiaAPI] Suspending proxy for: ${domain}`);
+    const proxyResult = await this.request(
+      "v-suspend-domain-proxy",
+      [username, domain, "no"],
+      {
+        forcePassword: true,
+      },
+    );
+    results.push({
+      step: "proxy",
+      success: proxyResult.success,
+      error: proxyResult.error,
+    });
+
+    const allSuccess = results.filter((r) => r.success).length >= 1;
+    // console.log(`[HestiaAPI] Suspend complete:`, results);
+
+    return {
+      success: allSuccess,
+      error: allSuccess ? undefined : "Failed to suspend domain",
+      output: JSON.stringify(results),
+      data: results,
+    };
   }
 
   /**
-   * Unsuspend a web domain
-   * v-unsuspend-web-domain USER DOMAIN [RESTART]
+   * Unsuspend a web domain - restores website access
    */
   async unsuspendWebDomain(
     username: string,
     domain: string,
+    restart: boolean = false,
   ): Promise<HestiaResponse> {
-    return this.request("v-unsuspend-web-domain", [username, domain, "yes"], {
+    const results = [];
+
+    // 1. Unsuspend the web domain
+    // console.log(`[HestiaAPI] Unsuspending web domain: ${domain}`);
+    const webResult = await this.request(
+      "v-unsuspend-web-domain",
+      [username, domain, "no"],
+      {
+        forcePassword: true,
+      },
+    );
+    results.push({
+      step: "web-domain",
+      success: webResult.success,
+      error: webResult.error,
+    });
+
+    // 2. Unsuspend proxy
+    // console.log(`[HestiaAPI] Unsuspending proxy for: ${domain}`);
+    const proxyResult = await this.request(
+      "v-unsuspend-domain-proxy",
+      [username, domain, "no"],
+      {
+        forcePassword: true,
+      },
+    );
+    results.push({
+      step: "proxy",
+      success: proxyResult.success,
+      error: proxyResult.error,
+    });
+
+    const allSuccess = results.filter((r) => r.success).length >= 1;
+    // console.log(`[HestiaAPI] Unsuspend complete:`, results);
+
+    return {
+      success: allSuccess,
+      error: allSuccess ? undefined : "Failed to unsuspend domain",
+      output: JSON.stringify(results),
+      data: results,
+    };
+  }
+
+  /**
+   * Restart a system service
+   * v-restart-service SERVICE
+   */
+  async restartService(service: string): Promise<HestiaResponse> {
+    return this.request("v-restart-service", [service], {
       forcePassword: true,
     });
   }

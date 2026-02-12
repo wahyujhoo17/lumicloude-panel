@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { HestiaAPI } from "@/lib/hestia-api";
+import { getPackage } from "@/lib/packages";
 import { z } from "zod";
 
 const createWebsiteSchema = z.object({
@@ -38,22 +39,15 @@ export async function POST(request: Request) {
     const data = createWebsiteSchema.parse(body);
 
     // Check package limits
-    const packageLimits: Record<string, { websites: number; name: string }> = {
-      starter: { websites: 3, name: "Starter" },
-      business: { websites: 10, name: "Business" },
-      enterprise: { websites: 0, name: "Enterprise" }, // 0 = unlimited
-    };
+    const pkg = getPackage(customer.packageId);
+    const websiteLimit = pkg ? pkg.websites : 1;
+    const packageName = pkg ? pkg.name : "Basic";
 
-    const limit = packageLimits[customer.packageId] || {
-      websites: 1,
-      name: "Basic",
-    };
-
-    if (limit.websites > 0 && customer.websites.length >= limit.websites) {
+    if (websiteLimit > 0 && customer.websites.length >= websiteLimit) {
       return NextResponse.json(
         {
           success: false,
-          error: `Website limit reached. Your ${limit.name} package allows ${limit.websites} website(s). Please upgrade your package to add more websites.`,
+          error: `Website limit reached. Your ${packageName} package allows ${websiteLimit} website(s). You currently have ${customer.websites.length}. Please upgrade your package to add more websites.`,
         },
         { status: 403 },
       );

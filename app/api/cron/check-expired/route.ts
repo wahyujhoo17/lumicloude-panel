@@ -50,27 +50,32 @@ export async function GET(request: Request) {
         const suspendResult = await hestia.suspendUser(customer.hestiaUsername);
 
         if (suspendResult.success) {
-          // Suspend all websites
+          // Suspend all websites - both subdomain and custom domain
           const websiteResults = [];
           for (const website of customer.websites) {
-            // Use custom domain if available, otherwise use subdomain
-            const domain = website.customDomain || website.subdomain;
+            // Suspend BOTH subdomain and custom domain (if exists)
+            const domainsToSuspend = [website.subdomain];
+            if (website.customDomain) {
+              domainsToSuspend.push(website.customDomain);
+            }
 
-            try {
-              const webResult = await hestia.suspendWebDomain(
-                customer.hestiaUsername,
-                domain,
-              );
-              websiteResults.push({
-                domain,
-                success: webResult.success,
-              });
-            } catch (error: any) {
-              websiteResults.push({
-                domain,
-                success: false,
-                error: error.message,
-              });
+            for (const domain of domainsToSuspend) {
+              try {
+                const webResult = await hestia.suspendWebDomain(
+                  customer.hestiaUsername,
+                  domain,
+                );
+                websiteResults.push({
+                  domain,
+                  success: webResult.success,
+                });
+              } catch (error: any) {
+                websiteResults.push({
+                  domain,
+                  success: false,
+                  error: error.message,
+                });
+              }
             }
           }
 
@@ -86,7 +91,7 @@ export async function GET(request: Request) {
               action: "customer.auto_suspended",
               resource: "customer",
               resourceId: customer.id,
-              description: `Auto-suspended expired customer: ${customer.name} (${customer.email}) and ${customer.websites.length} websites. Expired on: ${customer.expiresAt?.toISOString()}`,
+              description: `Auto-suspended expired customer: ${customer.name} (${customer.email}) and ${websiteResults.length} domains. Expired on: ${customer.expiresAt?.toISOString()}`,
             },
           });
 

@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Navbar } from "@/components/navbar";
+import { useToast } from "@/hooks/use-toast";
 import {
   Globe,
   Lock,
@@ -44,6 +45,7 @@ interface Customer {
 
 export default function WebsitesPage() {
   const router = useRouter();
+  const { toast } = useToast();
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -59,7 +61,6 @@ export default function WebsitesPage() {
   const [creating, setCreating] = useState(false);
   const [connectingDomain, setConnectingDomain] = useState(false);
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
   const [copied, setCopied] = useState<string | null>(null);
   const [showDnsGuide, setShowDnsGuide] = useState<string | null>(null);
 
@@ -71,6 +72,14 @@ export default function WebsitesPage() {
   });
   const [updating, setUpdating] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [confirmAction, setConfirmAction] = useState<{
+    title: string;
+    message: string;
+    variant?: "danger" | "warning";
+    confirmText?: string;
+    loading?: boolean;
+    onConfirm: () => Promise<void>;
+  } | null>(null);
 
   // Load customer data
   useEffect(() => {
@@ -99,8 +108,6 @@ export default function WebsitesPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError("");
-    setSuccess("");
     setCreating(true);
 
     try {
@@ -113,15 +120,32 @@ export default function WebsitesPage() {
       const data = await response.json();
 
       if (data.success) {
-        setSuccess(data.data.message);
+        toast({
+          title: "Website Created!",
+          description:
+            data.data.message ||
+            "Your new website has been created successfully.",
+          variant: "success",
+        });
         setFormData({ name: "", phpVersion: "8.1", enableSSL: true });
         setShowAddForm(false);
-        setTimeout(() => window.location.reload(), 2000);
+        // Refresh customer data
+        const res = await fetch("/api/customers/me");
+        const refreshed = await res.json();
+        if (refreshed.success) setCustomer(refreshed.data);
       } else {
-        setError(data.error || "Failed to create website");
+        toast({
+          title: "Failed to Create Website",
+          description: data.error || "Something went wrong.",
+          variant: "error",
+        });
       }
     } catch (err: any) {
-      setError(err.message || "Failed to create website");
+      toast({
+        title: "Error",
+        description: err.message || "Failed to create website",
+        variant: "error",
+      });
     } finally {
       setCreating(false);
     }
@@ -129,8 +153,6 @@ export default function WebsitesPage() {
 
   const handleConnectCustomDomain = async (websiteId: string) => {
     if (!customDomainInput.trim()) return;
-    setError("");
-    setSuccess("");
     setConnectingDomain(true);
 
     try {
@@ -146,15 +168,32 @@ export default function WebsitesPage() {
       const data = await response.json();
 
       if (data.success) {
-        setSuccess(data.data.message);
+        toast({
+          title: "Custom Domain Connected!",
+          description:
+            data.data.message ||
+            "Your custom domain has been linked successfully.",
+          variant: "success",
+        });
         setCustomDomainInput("");
         setShowCustomDomainForm(null);
-        setTimeout(() => window.location.reload(), 2000);
+        // Refresh customer data
+        const res = await fetch("/api/customers/me");
+        const refreshed = await res.json();
+        if (refreshed.success) setCustomer(refreshed.data);
       } else {
-        setError(data.error || "Failed to connect custom domain");
+        toast({
+          title: "Failed to Connect Domain",
+          description: data.error || "Something went wrong.",
+          variant: "error",
+        });
       }
     } catch (err: any) {
-      setError(err.message || "Failed to connect custom domain");
+      toast({
+        title: "Error",
+        description: err.message || "Failed to connect custom domain",
+        variant: "error",
+      });
     } finally {
       setConnectingDomain(false);
     }
@@ -167,7 +206,6 @@ export default function WebsitesPage() {
       customDomain: website.customDomain || "",
       phpVersion: website.phpVersion || "8.1",
     });
-    setError("");
   };
 
   // Handle update website
@@ -175,8 +213,6 @@ export default function WebsitesPage() {
     e.preventDefault();
     if (!editingWebsite) return;
 
-    setError("");
-    setSuccess("");
     setUpdating(true);
 
     try {
@@ -192,7 +228,11 @@ export default function WebsitesPage() {
       const data = await response.json();
 
       if (data.success) {
-        setSuccess("Website updated successfully");
+        toast({
+          title: "Website Updated",
+          description: "Website settings have been saved successfully.",
+          variant: "success",
+        });
         setEditingWebsite(null);
         // Update local state
         if (customer) {
@@ -210,90 +250,126 @@ export default function WebsitesPage() {
           });
         }
       } else {
-        setError(data.error || "Failed to update website");
+        toast({
+          title: "Update Failed",
+          description: data.error || "Failed to update website",
+          variant: "error",
+        });
       }
     } catch (err: any) {
-      setError(err.message || "Failed to update website");
+      toast({
+        title: "Error",
+        description: err.message || "Failed to update website",
+        variant: "error",
+      });
     } finally {
       setUpdating(false);
     }
   };
 
   // Handle delete website
-  const handleDeleteWebsite = async (website: Website) => {
-    if (
-      !confirm(
-        `Are you sure you want to delete "${website.customDomain || website.subdomain}"? This action cannot be undone and all files will be permanently deleted.`,
-      )
-    )
-      return;
-
-    setError("");
-    setDeleting(website.id);
-
-    try {
-      const response = await fetch(`/api/websites/${website.id}`, {
-        method: "DELETE",
-      });
-
-      const data = await response.json();
-
-      if (data.success) {
-        setSuccess("Website deleted successfully");
-        // Update local state
-        if (customer) {
-          setCustomer({
-            ...customer,
-            websites: customer.websites.filter((w) => w.id !== website.id),
+  const handleDeleteWebsite = (website: Website) => {
+    const domainName = website.customDomain || website.subdomain;
+    setConfirmAction({
+      title: "Delete Website",
+      message: `Are you sure you want to delete "${domainName}"? This action cannot be undone and all files will be permanently deleted.`,
+      variant: "danger",
+      confirmText: "Delete Website",
+      onConfirm: async () => {
+        setDeleting(website.id);
+        try {
+          const response = await fetch(`/api/websites/${website.id}`, {
+            method: "DELETE",
           });
+          const data = await response.json();
+
+          if (data.success) {
+            toast({
+              title: "Website Deleted",
+              description: `"${domainName}" has been permanently deleted.`,
+              variant: "success",
+            });
+            if (customer) {
+              setCustomer({
+                ...customer,
+                websites: customer.websites.filter((w) => w.id !== website.id),
+              });
+            }
+          } else {
+            toast({
+              title: "Delete Failed",
+              description: data.error || "Failed to delete website",
+              variant: "error",
+            });
+          }
+        } catch (err: any) {
+          toast({
+            title: "Error",
+            description: err.message || "Failed to delete website",
+            variant: "error",
+          });
+        } finally {
+          setDeleting(null);
+          setConfirmAction(null);
         }
-      } else {
-        setError(data.error || "Failed to delete website");
-      }
-    } catch (err: any) {
-      setError(err.message || "Failed to delete website");
-    } finally {
-      setDeleting(null);
-    }
+      },
+    });
   };
 
   // Handle remove custom domain
-  const handleRemoveCustomDomain = async (websiteId: string) => {
-    if (!confirm("Are you sure you want to remove the custom domain?")) return;
-
-    setError("");
-    setUpdating(true);
-
-    try {
-      const response = await fetch(`/api/websites/${websiteId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          customDomain: null,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (data.success) {
-        setSuccess("Custom domain removed successfully");
-        // Update local state
-        if (customer) {
-          setCustomer({
-            ...customer,
-            websites: customer.websites.map((w) =>
-              w.id === websiteId ? { ...w, customDomain: null } : w,
-            ),
+  const handleRemoveCustomDomain = (websiteId: string) => {
+    const website = customer?.websites.find((w) => w.id === websiteId);
+    setConfirmAction({
+      title: "Remove Custom Domain",
+      message: `Are you sure you want to remove the custom domain "${website?.customDomain || ""}"? The website will only be accessible via the generated subdomain.`,
+      variant: "warning",
+      confirmText: "Remove Domain",
+      onConfirm: async () => {
+        setUpdating(true);
+        try {
+          const response = await fetch(`/api/websites/${websiteId}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              customDomain: null,
+            }),
           });
+          const data = await response.json();
+
+          if (data.success) {
+            toast({
+              title: "Custom Domain Removed",
+              description:
+                "The custom domain has been disconnected successfully.",
+              variant: "success",
+            });
+            if (customer) {
+              setCustomer({
+                ...customer,
+                websites: customer.websites.map((w) =>
+                  w.id === websiteId ? { ...w, customDomain: null } : w,
+                ),
+              });
+            }
+          } else {
+            toast({
+              title: "Remove Failed",
+              description: data.error || "Failed to remove custom domain",
+              variant: "error",
+            });
+          }
+        } catch (err: any) {
+          toast({
+            title: "Error",
+            description: err.message || "Failed to remove custom domain",
+            variant: "error",
+          });
+        } finally {
+          setUpdating(false);
+          setConfirmAction(null);
         }
-      } else {
-        setError(data.error || "Failed to remove custom domain");
-      }
-    } catch (err: any) {
-      setError(err.message || "Failed to remove custom domain");
-    } finally {
-      setUpdating(false);
-    }
+      },
+    });
   };
 
   if (loading) {
@@ -371,22 +447,6 @@ export default function WebsitesPage() {
             )}
           </div>
         </div>
-
-        {/* Success Message */}
-        {success && (
-          <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg flex items-start">
-            <CheckCircle className="w-5 h-5 text-green-400 flex-shrink-0" />
-            <p className="ml-3 text-sm text-green-700">{success}</p>
-          </div>
-        )}
-
-        {/* Error Message */}
-        {error && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start">
-            <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0" />
-            <p className="ml-3 text-sm text-red-700">{error}</p>
-          </div>
-        )}
 
         {/* Add Website Form */}
         {showAddForm && (
@@ -1254,14 +1314,6 @@ export default function WebsitesPage() {
                 </p>
               </div>
 
-              {/* Error Message in Modal */}
-              {error && (
-                <div className="p-3 bg-red-50 border border-red-200 rounded-lg flex items-center">
-                  <AlertCircle className="w-4 h-4 text-red-500 mr-2" />
-                  <p className="text-sm text-red-700">{error}</p>
-                </div>
-              )}
-
               {/* Action Buttons */}
               <div className="flex justify-end gap-3 pt-4 border-t">
                 <button
@@ -1291,6 +1343,80 @@ export default function WebsitesPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmation Dialog */}
+      {confirmAction && (
+        <div
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !confirmAction.loading)
+              setConfirmAction(null);
+          }}
+        >
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md animate-in fade-in zoom-in-95 duration-200">
+            {/* Icon */}
+            <div className="pt-6 pb-2 flex justify-center">
+              <div
+                className={`w-14 h-14 rounded-full flex items-center justify-center ${
+                  confirmAction.variant === "danger"
+                    ? "bg-red-100"
+                    : "bg-yellow-100"
+                }`}
+              >
+                {confirmAction.variant === "danger" ? (
+                  <Trash2 className="w-7 h-7 text-red-600" />
+                ) : (
+                  <AlertTriangle className="w-7 h-7 text-yellow-600" />
+                )}
+              </div>
+            </div>
+
+            {/* Content */}
+            <div className="px-6 pb-2 text-center">
+              <h3 className="text-lg font-semibold text-gray-900">
+                {confirmAction.title}
+              </h3>
+              <p className="mt-2 text-sm text-gray-600 leading-relaxed">
+                {confirmAction.message}
+              </p>
+            </div>
+
+            {/* Actions */}
+            <div className="px-6 pb-6 pt-4 flex gap-3">
+              <button
+                onClick={() => setConfirmAction(null)}
+                disabled={confirmAction.loading}
+                className="flex-1 px-4 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition font-medium text-sm disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  setConfirmAction((prev) =>
+                    prev ? { ...prev, loading: true } : null,
+                  );
+                  await confirmAction.onConfirm();
+                }}
+                disabled={confirmAction.loading}
+                className={`flex-1 px-4 py-2.5 text-white rounded-lg transition font-medium text-sm flex items-center justify-center disabled:opacity-70 ${
+                  confirmAction.variant === "danger"
+                    ? "bg-red-600 hover:bg-red-700"
+                    : "bg-yellow-600 hover:bg-yellow-700"
+                }`}
+              >
+                {confirmAction.loading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Processing...
+                  </>
+                ) : (
+                  confirmAction.confirmText || "Confirm"
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}

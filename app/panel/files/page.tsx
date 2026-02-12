@@ -75,12 +75,21 @@ function FileManagerContent() {
     isDirectory: boolean;
   } | null>(null);
   const [newItemName, setNewItemName] = useState("");
+  const [extracting, setExtracting] = useState<string | null>(null);
   const [contextMenu, setContextMenu] = useState<{
     x: number;
     y: number;
     file: any;
   } | null>(null);
   const [activeDropdown, setActiveDropdown] = useState<number | null>(null);
+  const [confirmAction, setConfirmAction] = useState<{
+    title: string;
+    message: string;
+    variant?: "danger" | "warning";
+    confirmText?: string;
+    loading?: boolean;
+    onConfirm: () => Promise<void>;
+  } | null>(null);
 
   // Website selection
   const [websites, setWebsites] = useState<Website[]>([]);
@@ -316,39 +325,43 @@ function FileManagerContent() {
   };
 
   // Handle bulk delete
-  const handleBulkDelete = async () => {
+  const handleBulkDelete = () => {
     if (selectedFiles.length === 0) return;
-    if (
-      !confirm(
-        `Are you sure you want to delete ${selectedFiles.length} selected item(s)?`,
-      )
-    )
-      return;
-
-    try {
-      for (const path of selectedFiles) {
-        await fetch(
-          `/api/panel/files?path=${encodeURIComponent(path)}&websiteId=${selectedWebsite}`,
-          {
-            method: "DELETE",
-          },
-        );
-      }
-      setSelectedFiles([]);
-      loadFiles();
-      toast({
-        variant: "success",
-        title: "Deleted",
-        description: `${selectedFiles.length} files deleted successfully`,
-      });
-    } catch (error) {
-      console.error("Error deleting files:", error);
-      toast({
-        variant: "error",
-        title: "Error",
-        description: "Failed to delete some files",
-      });
-    }
+    const count = selectedFiles.length;
+    setConfirmAction({
+      title: "Delete Selected Items",
+      message: `Are you sure you want to delete ${count} selected item(s)? This action cannot be undone.`,
+      variant: "danger",
+      confirmText: `Delete ${count} Item(s)`,
+      onConfirm: async () => {
+        try {
+          for (const filePath of selectedFiles) {
+            const isDirectory =
+              files.find((f) => f.path === filePath)?.isDirectory ?? false;
+            await fetch(
+              `/api/panel/files?path=${encodeURIComponent(filePath)}&isDirectory=${isDirectory}&websiteId=${selectedWebsite}`,
+              { method: "DELETE" },
+            );
+          }
+          setSelectedFiles([]);
+          loadFiles();
+          toast({
+            variant: "success",
+            title: "Deleted",
+            description: `${count} item(s) deleted successfully`,
+          });
+        } catch (error) {
+          console.error("Error deleting files:", error);
+          toast({
+            variant: "error",
+            title: "Error",
+            description: "Failed to delete some files",
+          });
+        } finally {
+          setConfirmAction(null);
+        }
+      },
+    });
   };
 
   const loadFiles = async () => {
@@ -413,40 +426,51 @@ function FileManagerContent() {
     }
   };
 
-  const handleDelete = async (path: string) => {
-    if (!confirm("Are you sure you want to delete this file?")) return;
-
-    try {
-      const res = await fetch(
-        `/api/panel/files?path=${encodeURIComponent(path)}&websiteId=${selectedWebsite}`,
-        {
-          method: "DELETE",
-        },
-      );
-
-      const data = await res.json();
-      if (data.success) {
-        loadFiles();
-        toast({
-          variant: "success",
-          title: "Deleted",
-          description: "File deleted successfully",
-        });
-      } else {
-        toast({
-          variant: "error",
-          title: "Delete failed",
-          description: data.error,
-        });
-      }
-    } catch (error) {
-      console.error("Error deleting file:", error);
-      toast({
-        variant: "error",
-        title: "Error",
-        description: "Failed to delete file",
-      });
-    }
+  const handleDelete = (path: string, isDir?: boolean) => {
+    const fileName = path.split("/").pop() || path;
+    // Auto-detect if it's a directory from files list
+    const isDirectory =
+      isDir ?? files.find((f) => f.path === path)?.isDirectory ?? false;
+    setConfirmAction({
+      title: isDirectory ? "Delete Folder" : "Delete File",
+      message: isDirectory
+        ? `Are you sure you want to delete folder "${fileName}" and all its contents? This action cannot be undone.`
+        : `Are you sure you want to delete "${fileName}"? This action cannot be undone.`,
+      variant: "danger",
+      confirmText: "Delete",
+      onConfirm: async () => {
+        try {
+          const res = await fetch(
+            `/api/panel/files?path=${encodeURIComponent(path)}&isDirectory=${isDirectory}&websiteId=${selectedWebsite}`,
+            { method: "DELETE" },
+          );
+          const data = await res.json();
+          if (data.success) {
+            loadFiles();
+            toast({
+              variant: "success",
+              title: "Deleted",
+              description: `"${fileName}" deleted successfully`,
+            });
+          } else {
+            toast({
+              variant: "error",
+              title: "Delete failed",
+              description: data.error,
+            });
+          }
+        } catch (error) {
+          console.error("Error deleting file:", error);
+          toast({
+            variant: "error",
+            title: "Error",
+            description: "Failed to delete file",
+          });
+        } finally {
+          setConfirmAction(null);
+        }
+      },
+    });
   };
 
   const navigateToFolder = (path: string) => {
@@ -577,43 +601,53 @@ function FileManagerContent() {
     }
   };
 
-  const handleExtractZip = async (filePath: string) => {
-    if (!confirm("Extract this ZIP file to the current directory?")) return;
-
-    try {
-      const res = await fetch("/api/panel/files", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          path: filePath,
-          action: "extract",
-          websiteId: selectedWebsite,
-        }),
-      });
-
-      const data = await res.json();
-      if (data.success) {
-        loadFiles();
-        toast({
-          variant: "success",
-          title: "Extracted",
-          description: "ZIP file extracted successfully",
-        });
-      } else {
-        toast({
-          variant: "error",
-          title: "Extract failed",
-          description: data.error,
-        });
-      }
-    } catch (error) {
-      console.error("Error extracting ZIP:", error);
-      toast({
-        variant: "error",
-        title: "Error",
-        description: "Failed to extract ZIP file",
-      });
-    }
+  const handleExtractZip = (filePath: string) => {
+    const fileName = filePath.split("/").pop() || filePath;
+    setConfirmAction({
+      title: "Extract ZIP Archive",
+      message: `Extract "${fileName}" to the current directory? Existing files with the same name will be overwritten.`,
+      variant: "warning",
+      confirmText: "Extract",
+      onConfirm: async () => {
+        setExtracting(filePath);
+        try {
+          const res = await fetch("/api/panel/files", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              path: filePath,
+              action: "extract",
+              websiteId: selectedWebsite,
+            }),
+          });
+          const data = await res.json();
+          if (data.success) {
+            loadFiles();
+            toast({
+              variant: "success",
+              title: "Extracted",
+              description: `"${fileName}" extracted successfully`,
+            });
+          } else {
+            toast({
+              variant: "error",
+              title: "Extract failed",
+              description: data.error,
+            });
+          }
+        } catch (error) {
+          console.error("Error extracting ZIP:", error);
+          toast({
+            variant: "error",
+            title: "Error",
+            description: "Failed to extract ZIP file",
+          });
+        } finally {
+          setExtracting(null);
+          setConfirmAction(null);
+        }
+      },
+    });
   };
 
   const handleCreateFolder = async (e: React.FormEvent) => {
@@ -742,7 +776,7 @@ function FileManagerContent() {
     }
   };
 
-  const handleSetDocumentRoot = async () => {
+  const handleSetDocumentRoot = () => {
     if (!currentPath) {
       toast({
         variant: "warning",
@@ -752,80 +786,87 @@ function FileManagerContent() {
       return;
     }
 
-    if (
-      !confirm(
-        `Set website root to folder: ${currentPath}?\n\nThis will change where your website serves files from.`,
-      )
-    )
-      return;
-
-    try {
-      setSettingDocRoot(true);
-      const res = await fetch("/api/websites/document-root", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ directory: currentPath }),
-      });
-
-      const data = await res.json();
-      if (data.success) {
-        toast({
-          variant: "success",
-          title: "Success",
-          description: `Document root changed to: ${currentPath}`,
-        });
-      } else {
-        toast({
-          variant: "error",
-          title: "Error",
-          description: data.error,
-        });
-      }
-    } catch (error) {
-      console.error("Error setting document root:", error);
-      toast({
-        variant: "error",
-        title: "Error",
-        description: "Failed to set document root",
-      });
-    } finally {
-      setSettingDocRoot(false);
-    }
+    setConfirmAction({
+      title: "Set Document Root",
+      message: `Set website root to folder: "${currentPath}"? This will change where your website serves files from.`,
+      variant: "warning",
+      confirmText: "Set as Root",
+      onConfirm: async () => {
+        try {
+          setSettingDocRoot(true);
+          const res = await fetch("/api/websites/document-root", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ directory: currentPath }),
+          });
+          const data = await res.json();
+          if (data.success) {
+            toast({
+              variant: "success",
+              title: "Document Root Updated",
+              description: `Document root changed to: ${currentPath}`,
+            });
+          } else {
+            toast({
+              variant: "error",
+              title: "Error",
+              description: data.error,
+            });
+          }
+        } catch (error) {
+          console.error("Error setting document root:", error);
+          toast({
+            variant: "error",
+            title: "Error",
+            description: "Failed to set document root",
+          });
+        } finally {
+          setSettingDocRoot(false);
+          setConfirmAction(null);
+        }
+      },
+    });
   };
 
-  const handleResetDocumentRoot = async () => {
-    if (!confirm("Reset document root to default (public_html)?")) return;
-
-    try {
-      setSettingDocRoot(true);
-      const res = await fetch("/api/websites/document-root", {
-        method: "DELETE",
-      });
-
-      const data = await res.json();
-      if (data.success) {
-        toast({
-          variant: "success",
-          title: "Success",
-          description: "Document root reset to default",
-        });
-      } else {
-        toast({
-          variant: "error",
-          title: "Error",
-          description: data.error,
-        });
-      }
-    } catch (error) {
-      console.error("Error resetting document root:", error);
-      toast({
-        variant: "error",
-        title: "Error",
-        description: "Failed to reset document root",
-      });
-    } finally {
-      setSettingDocRoot(false);
-    }
+  const handleResetDocumentRoot = () => {
+    setConfirmAction({
+      title: "Reset Document Root",
+      message: `Reset document root to default (public_html)? Your website will serve files from the default directory.`,
+      variant: "warning",
+      confirmText: "Reset Root",
+      onConfirm: async () => {
+        try {
+          setSettingDocRoot(true);
+          const res = await fetch("/api/websites/document-root", {
+            method: "DELETE",
+          });
+          const data = await res.json();
+          if (data.success) {
+            toast({
+              variant: "success",
+              title: "Document Root Reset",
+              description: "Document root has been reset to default",
+            });
+          } else {
+            toast({
+              variant: "error",
+              title: "Error",
+              description: data.error,
+            });
+          }
+        } catch (error) {
+          console.error("Error resetting document root:", error);
+          toast({
+            variant: "error",
+            title: "Error",
+            description: "Failed to reset document root",
+          });
+        } finally {
+          setSettingDocRoot(false);
+          setConfirmAction(null);
+        }
+      },
+    });
   };
 
   return (
@@ -1175,8 +1216,8 @@ function FileManagerContent() {
 
         {/* Rename Modal */}
         {showRenameModal && renamingItem && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md animate-in fade-in zoom-in-95 duration-200">
               <div className="px-6 py-4 border-b border-gray-200">
                 <h3 className="text-lg font-semibold">
                   Rename {renamingItem.isDirectory ? "Folder" : "File"}
@@ -1196,7 +1237,7 @@ function FileManagerContent() {
                     autoFocus
                   />
                 </div>
-                <div className="flex justify-end gap-2">
+                <div className="flex justify-end gap-3">
                   <button
                     type="button"
                     onClick={() => {
@@ -1204,60 +1245,13 @@ function FileManagerContent() {
                       setRenamingItem(null);
                       setNewItemName("");
                     }}
-                    className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                    className="px-4 py-2.5 border border-gray-300 rounded-lg hover:bg-gray-50 font-medium text-sm"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                  >
-                    Rename
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
-
-        {/* Rename Modal */}
-        {showRenameModal && renamingItem && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
-              <div className="px-6 py-4 border-b border-gray-200">
-                <h3 className="text-lg font-semibold">
-                  Rename {renamingItem.isDirectory ? "Folder" : "File"}
-                </h3>
-              </div>
-              <form onSubmit={handleRename} className="p-6 space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    New Name
-                  </label>
-                  <input
-                    type="text"
-                    value={newItemName}
-                    onChange={(e) => setNewItemName(e.target.value)}
-                    placeholder="Enter new name"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    autoFocus
-                  />
-                </div>
-                <div className="flex justify-end gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowRenameModal(false);
-                      setRenamingItem(null);
-                      setNewItemName("");
-                    }}
-                    className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                    className="px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium text-sm"
                   >
                     Rename
                   </button>
@@ -1554,11 +1548,20 @@ function FileManagerContent() {
                                         handleExtractZip(file.path);
                                         setActiveDropdown(null);
                                       }}
-                                      className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2"
+                                      disabled={extracting === file.path}
+                                      className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2 disabled:opacity-50"
                                       title="Extract ZIP archive"
                                     >
-                                      <Archive className="w-4 h-4 text-green-600" />
-                                      <span>Extract</span>
+                                      {extracting === file.path ? (
+                                        <Loader2 className="w-4 h-4 text-green-600 animate-spin" />
+                                      ) : (
+                                        <Archive className="w-4 h-4 text-green-600" />
+                                      )}
+                                      <span>
+                                        {extracting === file.path
+                                          ? "Extracting..."
+                                          : "Extract"}
+                                      </span>
                                     </button>
                                   )}
 
@@ -1704,11 +1707,20 @@ function FileManagerContent() {
                     handleExtractZip(contextMenu.file.path);
                     setContextMenu(null);
                   }}
-                  className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2"
+                  disabled={extracting === contextMenu.file.path}
+                  className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2 disabled:opacity-50"
                   title="Extract ZIP archive"
                 >
-                  <Archive className="w-4 h-4 text-green-600" />
-                  <span>Extract</span>
+                  {extracting === contextMenu.file.path ? (
+                    <Loader2 className="w-4 h-4 text-green-600 animate-spin" />
+                  ) : (
+                    <Archive className="w-4 h-4 text-green-600" />
+                  )}
+                  <span>
+                    {extracting === contextMenu.file.path
+                      ? "Extracting..."
+                      : "Extract"}
+                  </span>
                 </button>
               )}
 
@@ -1725,6 +1737,80 @@ function FileManagerContent() {
               <Trash2 className="w-4 h-4" />
               <span>Delete</span>
             </button>
+          </div>
+        )}
+
+        {/* Confirmation Dialog */}
+        {confirmAction && (
+          <div
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4"
+            onClick={(e) => {
+              if (e.target === e.currentTarget && !confirmAction.loading)
+                setConfirmAction(null);
+            }}
+          >
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md animate-in fade-in zoom-in-95 duration-200">
+              {/* Icon */}
+              <div className="pt-6 pb-2 flex justify-center">
+                <div
+                  className={`w-14 h-14 rounded-full flex items-center justify-center ${
+                    confirmAction.variant === "danger"
+                      ? "bg-red-100"
+                      : "bg-yellow-100"
+                  }`}
+                >
+                  {confirmAction.variant === "danger" ? (
+                    <Trash2 className="w-7 h-7 text-red-600" />
+                  ) : (
+                    <Archive className="w-7 h-7 text-yellow-600" />
+                  )}
+                </div>
+              </div>
+
+              {/* Content */}
+              <div className="px-6 pb-2 text-center">
+                <h3 className="text-lg font-semibold text-gray-900">
+                  {confirmAction.title}
+                </h3>
+                <p className="mt-2 text-sm text-gray-600 leading-relaxed">
+                  {confirmAction.message}
+                </p>
+              </div>
+
+              {/* Actions */}
+              <div className="px-6 pb-6 pt-4 flex gap-3">
+                <button
+                  onClick={() => setConfirmAction(null)}
+                  disabled={confirmAction.loading}
+                  className="flex-1 px-4 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition font-medium text-sm disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={async () => {
+                    setConfirmAction((prev) =>
+                      prev ? { ...prev, loading: true } : null,
+                    );
+                    await confirmAction.onConfirm();
+                  }}
+                  disabled={confirmAction.loading}
+                  className={`flex-1 px-4 py-2.5 text-white rounded-lg transition font-medium text-sm flex items-center justify-center disabled:opacity-70 ${
+                    confirmAction.variant === "danger"
+                      ? "bg-red-600 hover:bg-red-700"
+                      : "bg-yellow-600 hover:bg-yellow-700"
+                  }`}
+                >
+                  {confirmAction.loading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Processing...
+                    </>
+                  ) : (
+                    confirmAction.confirmText || "Confirm"
+                  )}
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </div>
