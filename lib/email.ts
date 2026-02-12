@@ -34,8 +34,10 @@ interface SendForgotPasswordParams {
 
 export class EmailService {
   private transporter: nodemailer.Transporter;
+  private config: EmailConfig;
 
   constructor(config: EmailConfig) {
+    this.config = config;
     this.transporter = nodemailer.createTransport({
       host: config.host,
       port: config.port,
@@ -57,10 +59,10 @@ export class EmailService {
     try {
       console.log("[EmailService] Attempting to send email to:", params.to);
       console.log("[EmailService] SMTP Config:", {
-        host: this.transporter.options.host,
-        port: this.transporter.options.port,
-        secure: this.transporter.options.secure,
-        user: this.transporter.options.auth?.user,
+        host: this.config.host,
+        port: this.config.port,
+        secure: this.config.secure,
+        user: this.config.auth.user,
       });
 
       const info = await this.transporter.sendMail({
