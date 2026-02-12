@@ -253,6 +253,19 @@ export class HestiaAPI {
   }
 
   /**
+   * Change user password
+   * v-change-user-password USER PASSWORD
+   */
+  async updateUserPassword(
+    username: string,
+    newPassword: string,
+  ): Promise<HestiaResponse> {
+    return this.request("v-change-user-password", [username, newPassword], {
+      forcePassword: true,
+    });
+  }
+
+  /**
    * Suspend a web domain - HestiaCP will show default suspended page
    */
   async suspendWebDomain(

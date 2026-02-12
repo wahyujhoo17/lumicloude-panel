@@ -2,6 +2,7 @@ import { requireAuth } from "@/lib/auth";
 import { Navbar } from "@/components/navbar";
 import ImageUpload from "@/components/image-upload";
 import LinkHestiaClient from "@/components/link-hestia-client";
+import ChangePasswordForm from "@/components/change-password-form";
 
 export default async function AccountPage() {
   const user = await requireAuth();
@@ -102,6 +103,9 @@ export default async function AccountPage() {
             </div>
           </div>
         </div>
+
+        {/* Change Password Section */}
+        <ChangePasswordForm className="mb-8" />
 
         <div className="bg-white rounded-xl shadow p-6">
           <h3 className="text-lg font-semibold">Help & next steps</h3>

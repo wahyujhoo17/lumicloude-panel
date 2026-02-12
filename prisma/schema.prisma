@@ -13,6 +13,16 @@ model User {
   name      String?
   password  String
   role      Role     @default(USER)
+  
+  // OTP fields for login verification
+  otpCode   String?
+  otpExpiry DateTime?
+  otpAttempts Int?   @default(0)
+  
+  // Password reset fields
+  resetToken String?
+  resetTokenExpiry DateTime?
+  
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
