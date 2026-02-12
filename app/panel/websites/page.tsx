@@ -555,10 +555,9 @@ export default function WebsitesPage() {
                               {website.customDomain || website.subdomain}
                             </span>
                             {website.sslEnabled && (
-                              <Lock
-                                className="w-4 h-4 text-green-500 flex-shrink-0"
-                                title="SSL Enabled"
-                              />
+                              <span title="SSL Enabled">
+                                <Lock className="w-4 h-4 text-green-500 flex-shrink-0" />
+                              </span>
                             )}
                             <span
                               className={`px-2 py-0.5 text-xs font-semibold rounded-full flex-shrink-0 ${

@@ -6,7 +6,7 @@ import { LogOut } from "lucide-react";
 import { Logo } from "@/components/logo";
 
 interface NavbarProps {
-  user: {
+  user?: {
     name?: string | null;
     email?: string | null;
     role?: string;
@@ -15,7 +15,7 @@ interface NavbarProps {
 
 export function Navbar({ user }: NavbarProps) {
   const pathname = usePathname();
-  const isAdmin = user.role === "ADMIN";
+  const isAdmin = user?.role === "ADMIN";
 
   const isActive = (path: string) => {
     if (path === "/dashboard" || path === "/panel") {
@@ -89,16 +89,18 @@ export function Navbar({ user }: NavbarProps) {
 
           {/* User Info & Logout */}
           <div className="flex items-center gap-2">
-            <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-gray-50 rounded-lg">
-              <div className="flex flex-col items-end">
-                <p className="text-xs text-gray-500 leading-tight">
-                  {isAdmin ? "Admin" : "Customer"}
-                </p>
-                <p className="text-xs sm:text-sm font-semibold text-gray-900 leading-tight">
-                  {user.name || user.email?.split("@")[0]}
-                </p>
+            {user && (
+              <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-gray-50 rounded-lg">
+                <div className="flex flex-col items-end">
+                  <p className="text-xs text-gray-500 leading-tight">
+                    {isAdmin ? "Admin" : "Customer"}
+                  </p>
+                  <p className="text-xs sm:text-sm font-semibold text-gray-900 leading-tight">
+                    {user.name || user.email?.split("@")[0]}
+                  </p>
+                </div>
               </div>
-            </div>
+            )}
             <Link
               href="/api/auth/signout"
               className="flex items-center gap-1.5 px-3 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg transition"

@@ -84,7 +84,7 @@ export class HestiaAPI {
    * Make a request to HestiaCP API
    * Uses positional args (arg1, arg2, ...) to avoid colliding with auth params (user, password)
    */
-  private async request<T = any>(
+  public async request<T = any>(
     command: string,
     args: string[] = [],
     options: { forcePassword?: boolean; returnData?: boolean } = {},
@@ -247,6 +247,32 @@ export class HestiaAPI {
    */
   async unsuspendUser(username: string): Promise<HestiaResponse> {
     return this.request("v-unsuspend-user", [username, "no"], {
+      forcePassword: true,
+    });
+  }
+
+  /**
+   * Suspend a web domain
+   * v-suspend-web-domain USER DOMAIN [RESTART]
+   */
+  async suspendWebDomain(
+    username: string,
+    domain: string,
+  ): Promise<HestiaResponse> {
+    return this.request("v-suspend-web-domain", [username, domain, "yes"], {
+      forcePassword: true,
+    });
+  }
+
+  /**
+   * Unsuspend a web domain
+   * v-unsuspend-web-domain USER DOMAIN [RESTART]
+   */
+  async unsuspendWebDomain(
+    username: string,
+    domain: string,
+  ): Promise<HestiaResponse> {
+    return this.request("v-unsuspend-web-domain", [username, domain, "yes"], {
       forcePassword: true,
     });
   }

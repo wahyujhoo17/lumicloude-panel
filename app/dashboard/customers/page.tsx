@@ -13,11 +13,14 @@ import {
   Edit,
   Trash2,
   MoreVertical,
+  Ban,
+  CheckCircle,
 } from "lucide-react";
 import Link from "next/link";
 import { Navbar } from "@/components/navbar";
 import { getPackage } from "@/lib/packages";
 import { useToast } from "@/hooks/use-toast";
+import { Toaster } from "@/components/ui/toaster";
 
 interface Customer {
   id: string;
@@ -54,6 +57,7 @@ export default function CustomersPage() {
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<Customer | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [suspending, setSuspending] = useState<string | null>(null);
 
   const togglePasswordVisibility = (customerId: string) => {
     setVisiblePasswords((prev) => {
@@ -107,6 +111,44 @@ export default function CustomersPage() {
       });
     } finally {
       setDeleting(false);
+    }
+  };
+
+  const handleSuspend = async (customerId: string, currentStatus: string) => {
+    try {
+      setSuspending(customerId);
+      const isSuspend = currentStatus !== "SUSPENDED";
+
+      const response = await fetch(`/api/customers/${customerId}/suspend`, {
+        method: isSuspend ? "POST" : "DELETE",
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.error ||
+            `Failed to ${isSuspend ? "suspend" : "unsuspend"} customer`,
+        );
+      }
+
+      toast({
+        title: "Success",
+        description:
+          data.message ||
+          `Customer ${isSuspend ? "suspended" : "unsuspended"} successfully`,
+      });
+
+      setActiveDropdown(null);
+      fetchCustomers();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "error",
+      });
+    } finally {
+      setSuspending(null);
     }
   };
 
@@ -420,6 +462,35 @@ export default function CustomersPage() {
                               </Link>
                               <div className="border-t border-gray-200 my-1"></div>
                               <button
+                                onClick={() =>
+                                  handleSuspend(customer.id, customer.status)
+                                }
+                                disabled={suspending === customer.id}
+                                className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2 ${
+                                  customer.status === "SUSPENDED"
+                                    ? "text-green-600"
+                                    : "text-orange-600"
+                                }`}
+                              >
+                                {suspending === customer.id ? (
+                                  <>
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                    <span>Processing...</span>
+                                  </>
+                                ) : customer.status === "SUSPENDED" ? (
+                                  <>
+                                    <CheckCircle className="w-4 h-4" />
+                                    <span>Unsuspend</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Ban className="w-4 h-4" />
+                                    <span>Suspend</span>
+                                  </>
+                                )}
+                              </button>
+                              <div className="border-t border-gray-200 my-1"></div>
+                              <button
                                 onClick={() => {
                                   setDeleteConfirm(customer);
                                   setActiveDropdown(null);
@@ -518,6 +589,7 @@ export default function CustomersPage() {
           </div>
         </div>
       )}
+      <Toaster />
     </div>
   );
 }
