@@ -16,7 +16,10 @@ export async function POST(request: Request) {
   try {
     const user = await requireAuth();
     const body = await request.json();
-    const { directory } = changeDocRootSchema.parse(body);
+    const { directory, websiteId } = {
+      ...changeDocRootSchema.parse(body),
+      websiteId: body.websiteId,
+    };
 
     const customer = await prisma.customer.findUnique({
       where: { email: user.email || "" },
@@ -32,7 +35,8 @@ export async function POST(request: Request) {
       );
     }
 
-    const website = customer.websites[0];
+    const website =
+      customer.websites.find((w) => w.id === websiteId) || customer.websites[0];
     if (!website) {
       return NextResponse.json(
         { success: false, error: "No website found" },
@@ -92,6 +96,8 @@ export async function POST(request: Request) {
 export async function DELETE(request: Request) {
   try {
     const user = await requireAuth();
+    const body = await request.json().catch(() => ({}));
+    const websiteId = body.websiteId;
 
     const customer = await prisma.customer.findUnique({
       where: { email: user.email || "" },
@@ -107,7 +113,9 @@ export async function DELETE(request: Request) {
       );
     }
 
-    const website = customer.websites[0];
+    const website = websiteId
+      ? customer.websites.find((w) => w.id === websiteId)
+      : customer.websites[0];
     if (!website) {
       return NextResponse.json(
         { success: false, error: "No website found" },

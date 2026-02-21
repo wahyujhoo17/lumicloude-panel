@@ -797,7 +797,10 @@ function FileManagerContent() {
           const res = await fetch("/api/websites/document-root", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ directory: currentPath }),
+            body: JSON.stringify({
+              directory: currentPath,
+              websiteId: selectedWebsite,
+            }),
           });
           const data = await res.json();
           if (data.success) {
@@ -839,6 +842,8 @@ function FileManagerContent() {
           setSettingDocRoot(true);
           const res = await fetch("/api/websites/document-root", {
             method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ websiteId: selectedWebsite }),
           });
           const data = await res.json();
           if (data.success) {
