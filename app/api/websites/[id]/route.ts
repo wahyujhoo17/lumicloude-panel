@@ -152,28 +152,38 @@ export async function PUT(
           );
         }
 
-        // Add domain alias in HestiaCP
+        // Add domain alias (www dan non-www) di HestiaCP
         if (customDomain !== website.customDomain) {
           try {
-            // Remove old alias if exists
+            // Remove old aliases if exists
             if (website.customDomain) {
-              await hestia.deleteDomainAlias(
-                customer.hestiaUsername,
-                website.subdomain,
-                website.customDomain,
-              );
+              const oldAliases = [website.customDomain];
+              if (!website.customDomain.startsWith("www.")) {
+                oldAliases.push("www." + website.customDomain);
+              }
+              for (const alias of oldAliases) {
+                await hestia.deleteDomainAlias(
+                  customer.hestiaUsername,
+                  website.subdomain,
+                  alias,
+                );
+              }
             }
 
-            // Add new alias
-            const result = await hestia.addDomainAlias(
+            // Add new aliases
+            const newAliases = [customDomain];
+            if (!customDomain.startsWith("www.")) {
+              newAliases.push("www." + customDomain);
+            }
+            const result = await hestia.addDomainAliases(
               customer.hestiaUsername,
               website.subdomain,
-              customDomain,
+              newAliases,
             );
 
             if (!result.success) {
               console.error(
-                "Failed to add domain alias in HestiaCP:",
+                "Failed to add domain aliases in HestiaCP:",
                 result.error,
               );
             }
@@ -184,14 +194,20 @@ export async function PUT(
 
         updateData.customDomain = customDomain;
       } else {
-        // Remove custom domain
+        // Remove custom domain (hapus www dan non-www)
         if (website.customDomain) {
           try {
-            await hestia.deleteDomainAlias(
-              customer.hestiaUsername,
-              website.subdomain,
-              website.customDomain,
-            );
+            const aliasesToRemove = [website.customDomain];
+            if (!website.customDomain.startsWith("www.")) {
+              aliasesToRemove.push("www." + website.customDomain);
+            }
+            for (const alias of aliasesToRemove) {
+              await hestia.deleteDomainAlias(
+                customer.hestiaUsername,
+                website.subdomain,
+                alias,
+              );
+            }
           } catch (hestiaError) {
             console.error("HestiaCP remove alias error:", hestiaError);
           }

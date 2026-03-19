@@ -973,18 +973,17 @@ export default function WebsitesPage() {
                 {/* Existing Custom Domain Info + Collapsible DNS Guide */}
                 {website.customDomain && (
                   <div className="border-t border-gray-200">
-                    {/* Connection Status */}
-                    <div className="bg-green-50 p-4">
+                    {/* Connection Status & Enable SSL Button */}
+                    <div className="bg-green-50 p-4 flex items-start justify-between">
                       <div className="flex items-start text-sm text-green-800">
                         <CheckCircle className="w-5 h-5 mr-2 mt-0.5 text-green-600 flex-shrink-0" />
                         <div className="flex-1">
                           <p className="font-semibold text-green-900">
-                            Custom domain{" "}
-                            <strong>{website.customDomain}</strong> berhasil
-                            terhubung!
+                            Custom domain {" "}
+                            <strong>{website.customDomain}</strong> berhasil terhubung!
                           </p>
                           <p className="mt-1 text-green-700">
-                            Pengunjung dapat mengakses website Anda melalui:{" "}
+                            Pengunjung dapat mengakses website Anda melalui: {" "}
                             <a
                               href={`https://${website.customDomain}`}
                               target="_blank"
@@ -996,6 +995,50 @@ export default function WebsitesPage() {
                           </p>
                         </div>
                       </div>
+                      {/* Enable SSL Button */}
+                      <button
+                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-medium"
+                        onClick={async () => {
+                          setUpdating(true);
+                          try {
+                            const response = await fetch("/api/websites/ssl/enable", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ websiteId: website.id, customDomain: website.customDomain }),
+                            });
+                            const data = await response.json();
+                            if (data.success) {
+                              toast({
+                                title: "SSL Enabled!",
+                                description: data.message || "SSL telah diaktifkan untuk custom domain.",
+                                variant: "success",
+                              });
+                              // Refresh customer data
+                              const res = await fetch("/api/customers/me");
+                              const refreshed = await res.json();
+                              if (refreshed.success) setCustomer(refreshed.data);
+                            } else {
+                              toast({
+                                title: "Enable SSL Failed",
+                                description: data.error || "Gagal mengaktifkan SSL.",
+                                variant: "error",
+                              });
+                            }
+                          } catch (err: any) {
+                            toast({
+                              title: "Error",
+                              description: err.message || "Gagal mengaktifkan SSL.",
+                              variant: "error",
+                            });
+                          } finally {
+                            setUpdating(false);
+                          }
+                        }}
+                        disabled={updating}
+                        style={{ minWidth: 120 }}
+                      >
+                        {updating ? "Mengaktifkan..." : "Aktifkan SSL"}
+                      </button>
                     </div>
 
                     {/* Collapsible DNS Setup Guide */}

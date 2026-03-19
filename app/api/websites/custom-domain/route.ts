@@ -1,3 +1,4 @@
+// ...existing code...
 import { NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
@@ -66,11 +67,16 @@ export async function POST(request: Request) {
       password: process.env.HESTIA_PASSWORD,
     });
 
-    // Add custom domain as alias in Hestia
+    // Tambahkan alias www dan non-www
+    const aliasesToAdd = [data.customDomain];
+    if (!data.customDomain.startsWith("www.")) {
+      aliasesToAdd.push("www." + data.customDomain);
+    }
+
     const aliasResult = await hestia.addDomainAliases(
       customer.hestiaUsername,
       website.subdomain,
-      [data.customDomain],
+      aliasesToAdd,
     );
 
     if (!aliasResult.success) {
@@ -85,7 +91,7 @@ export async function POST(request: Request) {
     }
 
     console.log(
-      `[CUSTOM DOMAIN] Alias added: ${data.customDomain} → ${website.subdomain}`,
+      `[CUSTOM DOMAIN] Aliases added: ${aliasesToAdd.join(", ")} → ${website.subdomain}`,
     );
 
     // Update database
@@ -93,7 +99,7 @@ export async function POST(request: Request) {
       where: { id: data.websiteId },
       data: {
         customDomain: data.customDomain,
-        aliases: [data.customDomain],
+        aliases: aliasesToAdd,
       },
     });
 

@@ -8,7 +8,7 @@ import prisma from "@/lib/prisma";
  */
 export async function POST(request: Request) {
   try {
-    const { websiteId } = await request.json();
+    const { websiteId, customDomain } = await request.json();
 
     const website = await prisma.website.findUnique({
       where: { id: websiteId },
@@ -24,10 +24,11 @@ export async function POST(request: Request) {
 
     const hestia = getHestiaAPI();
 
-    // Enable SSL
+    // Enable SSL for custom domain if provided, otherwise for subdomain
+    const domainToEnable = customDomain || website.subdomain;
     const sslResult = await hestia.enableSSL(
       website.customer.hestiaUsername,
-      website.subdomain,
+      domainToEnable,
     );
 
     if (!sslResult.success) {
@@ -35,7 +36,7 @@ export async function POST(request: Request) {
     }
 
     // Force SSL redirect
-    await hestia.forceSSL(website.customer.hestiaUsername, website.subdomain);
+    await hestia.forceSSL(website.customer.hestiaUsername, domainToEnable);
 
     // Update database
     await prisma.website.update({
@@ -50,7 +51,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       success: true,
-      message: "SSL enabled successfully",
+      message: `SSL enabled successfully for ${domainToEnable}`,
     });
   } catch (error: any) {
     console.error("Error enabling SSL:", error);
